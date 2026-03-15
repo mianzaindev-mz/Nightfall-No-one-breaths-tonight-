@@ -593,7 +593,7 @@ hr { border: none; border-top: 1px solid rgba(201,168,76,.1); margin: 16px 0; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   border: 1px solid rgba(201,168,76,.12);
   border-radius: var(--radius);
   background: rgba(201,168,76,.03);
@@ -607,6 +607,29 @@ hr { border: none; border-top: 1px solid rgba(201,168,76,.1); margin: 16px 0; }
   background: rgba(201,168,76,.15);
   box-shadow: var(--gold-glow);
 }
+.avatar-hidden { display: none; }
+.avatar-toggle {
+  width: 100%; text-align: center;
+  font-size: .7rem; color: var(--gold-dim);
+  cursor: pointer; padding: 6px;
+  letter-spacing: 1px;
+  font-family: var(--font-display);
+  grid-column: 1 / -1;
+  transition: color .2s;
+}
+.avatar-toggle:hover { color: var(--gold); }
+.avatar-grid-full {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+/* Vote confirmed pulse */
+@keyframes voteConfirmPulse {
+  0% { box-shadow: 0 0 0 0 rgba(201,168,76,.6); }
+  70% { box-shadow: 0 0 0 12px rgba(201,168,76,0); }
+  100% { box-shadow: 0 0 0 0 rgba(201,168,76,0); }
+}
+.bplayer.sel { animation: voteConfirmPulse .6s ease; }
 
 /* ── Chat ───────────────────────────────────────────────────── */
 .chat-panel {
@@ -1255,3 +1278,263 @@ hr { border: none; border-top: 1px solid rgba(201,168,76,.1); margin: 16px 0; }
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 12px; color: var(--pale-dim);
 }
+
+/* ── Dramatic Death Overlay ────────────────────────────────── */
+.dramatic-death-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.92);
+  display: flex; align-items: center; justify-content: center;
+  animation: ddFadeIn .5s ease;
+  cursor: pointer;
+}
+@keyframes ddFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.dd-fadeout {
+  animation: ddFadeOutAnim .6s ease forwards !important;
+}
+@keyframes ddFadeOutAnim {
+  to { opacity: 0; }
+}
+.dramatic-death-card {
+  text-align: center;
+  padding: 32px 40px;
+  border: 2px solid var(--dd-color, #f9a825);
+  border-radius: 16px;
+  background: rgba(0,0,0,.8);
+  box-shadow: 0 0 40px var(--dd-glow, rgba(249,168,37,.2)),
+              0 0 80px var(--dd-glow, rgba(249,168,37,.1));
+  max-width: 420px;
+  animation: ddCardIn .7s cubic-bezier(.22,.68,0,1.2);
+}
+@keyframes ddCardIn {
+  from { opacity: 0; transform: scale(.7) translateY(30px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.dd-icon {
+  font-size: 4rem;
+  margin-bottom: 8px;
+  animation: ddPulse 1.5s infinite;
+}
+@keyframes ddPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.dd-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--dd-color, #f9a825);
+  letter-spacing: 3px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.dd-subtitle {
+  font-size: .85rem;
+  color: var(--pale-dim);
+  margin-bottom: 12px;
+}
+.dd-divider {
+  width: 60px; height: 2px;
+  background: var(--dd-color, #f9a825);
+  margin: 0 auto 12px;
+  opacity: .5;
+}
+.dd-message {
+  font-size: .9rem;
+  color: var(--pale);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.dd-role {
+  font-family: var(--font-display);
+  font-size: .7rem;
+  letter-spacing: 5px;
+  color: var(--dd-color, #f9a825);
+  opacity: .6;
+}
+
+/* ── Mood Notifications ────────────────────────────────────── */
+.mood-notif {
+  position: fixed; top: 16px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 250;
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 400px;
+  animation: moodSlideIn .4s ease;
+}
+@keyframes moodSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.mood-fadeout {
+  animation: moodFadeOut .6s ease forwards !important;
+}
+@keyframes moodFadeOut {
+  to { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+.mood-celebratory {
+  background: rgba(0,0,0,.9);
+  border: 1px solid rgba(249,168,37,.4);
+  box-shadow: 0 0 20px rgba(249,168,37,.15);
+}
+.mood-neutral {
+  background: rgba(0,0,0,.9);
+  border: 1px solid rgba(255,255,255,.15);
+}
+.mood-somber {
+  background: rgba(30,0,0,.95);
+  border: 1px solid rgba(229,57,53,.25);
+  box-shadow: 0 0 15px rgba(229,57,53,.08);
+}
+.mood-text { font-size: .85rem; color: var(--pale); }
+.mood-detail { font-size: .65rem; color: var(--pale-dim); margin-top: 3px; }
+
+/* ── Evidence Board Improvements ───────────────────────────── */
+.eb-stats {
+  display: flex; justify-content: center; gap: 14px;
+  font-size: .65rem; color: var(--pale-dim);
+  padding: 6px 0; margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.eb-round-count {
+  font-size: .65rem; color: var(--pale-dim);
+  margin-left: 6px; font-family: inherit;
+}
+.eb-evidence-header {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; margin-bottom: 4px;
+}
+.eb-strength {
+  font-size: .55rem; padding: 1px 6px;
+  border: 1px solid; border-radius: 8px;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+
+/* ── Town Board — Dead Players ─────────────────────────────── */
+.tb-dead {
+  position: relative;
+  opacity: .5;
+  filter: grayscale(.6);
+}
+.tb-death-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.7);
+  border-radius: 10px;
+  z-index: 5;
+}
+.tb-death-icon { font-size: 1.8rem; margin-bottom: 2px; }
+.tb-death-label {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.tb-death-executed .tb-death-label { color: #e53935; }
+.tb-death-killed .tb-death-label { color: #999; }
+.tb-death-role {
+  font-size: .7rem;
+  color: var(--pale-dim);
+  margin-top: 2px;
+}
+
+/* ── Disabled Feature Rows ─────────────────────────────────── */
+.feature-disabled {
+  opacity: .35;
+  pointer-events: none;
+  filter: grayscale(.5);
+}
+
+/* ── Cinematic Intro ───────────────────────────────────────── */
+.intro-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: radial-gradient(ellipse at center, rgba(15,10,5,.95) 0%, rgba(0,0,0,1) 70%);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .8s ease;
+  overflow: hidden;
+  cursor: pointer;
+}
+.intro-overlay.intro-done { opacity: 0; pointer-events: none; }
+.intro-particles { position: absolute; inset: 0; pointer-events: none; }
+.intro-particle {
+  position: absolute; bottom: -10px;
+  width: 3px; height: 3px;
+  background: radial-gradient(circle, rgba(249,168,37,.8), transparent 70%);
+  border-radius: 50%;
+  animation: introFloat linear infinite;
+}
+@keyframes introFloat {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: .3; }
+  100% { transform: translateY(-100vh) scale(.3); opacity: 0; }
+}
+.intro-content {
+  text-align: center; z-index: 2;
+  animation: introContentIn 1s ease .2s both;
+}
+@keyframes introContentIn {
+  from { opacity: 0; transform: translateY(20px) scale(.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.intro-candle {
+  font-size: 3.5rem;
+  margin-bottom: 8px;
+  animation: introFlicker 1.5s infinite alternate;
+  filter: drop-shadow(0 0 15px rgba(249,168,37,.4));
+}
+@keyframes introFlicker {
+  0%, 20%, 100% { opacity: 1; transform: scale(1); }
+  10% { opacity: .85; transform: scale(.97); }
+  50% { opacity: .95; transform: scale(1.02); }
+}
+.intro-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 10vw, 5rem);
+  letter-spacing: 8px;
+  color: #f5f0e8;
+  text-shadow: 0 0 30px rgba(249,168,37,.3), 0 0 60px rgba(249,168,37,.1);
+  animation: introTitleGlow 2s ease infinite alternate;
+}
+.intro-title em {
+  color: var(--gold);
+  font-style: normal;
+}
+@keyframes introTitleGlow {
+  from { text-shadow: 0 0 30px rgba(249,168,37,.3), 0 0 60px rgba(249,168,37,.1); }
+  to { text-shadow: 0 0 40px rgba(249,168,37,.5), 0 0 80px rgba(249,168,37,.2); }
+}
+.intro-tagline {
+  font-family: var(--font-display);
+  font-size: .85rem;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: rgba(249,168,37,.6);
+  margin-top: 4px;
+  animation: introFadeUp .8s ease .6s both;
+}
+.intro-line {
+  width: 80px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(249,168,37,.4), transparent);
+  margin: 12px auto;
+  animation: introLineExpand 1s ease .8s both;
+}
+@keyframes introLineExpand {
+  from { width: 0; opacity: 0; }
+  to { width: 80px; opacity: 1; }
+}
+.intro-subtitle {
+  font-size: .7rem;
+  color: rgba(255,255,255,.3);
+  letter-spacing: 2px;
+  animation: introFadeUp .8s ease 1s both;
+}
+@keyframes introFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

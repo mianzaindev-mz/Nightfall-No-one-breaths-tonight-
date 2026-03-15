@@ -93,6 +93,9 @@ document.getElementById('readyBtn').addEventListener('click', () => {
 document.getElementById('cvBtn').addEventListener('click', () => {
   game.confirmVote();
 });
+document.getElementById('skipVoteBtn').addEventListener('click', () => {
+  game.skipVote();
+});
 
 // ── Day Screen — Chat ────────────────────────────────────────
 function sendChatMsg() {
@@ -139,6 +142,11 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('setDoctor').checked = game.settings.doctor;
   document.getElementById('setJester').checked = game.settings.jester;
   document.getElementById('setHideVotes').checked = game.settings.hideVotes;
+  // Optional features
+  document.getElementById('setWhispers').checked = game.settings.whispers !== false;
+  document.getElementById('setGhostClues').checked = game.settings.ghostClues !== false;
+  document.getElementById('setNightEvents').checked = game.settings.nightEvents !== false;
+  document.getElementById('setSuspicion').checked = game.settings.suspicion !== false;
   document.getElementById('settingsModal').classList.add('open');
 });
 
@@ -154,6 +162,10 @@ document.getElementById('settingsSave').addEventListener('click', () => {
     doctor: document.getElementById('setDoctor').checked,
     jester: document.getElementById('setJester').checked,
     hideVotes: document.getElementById('setHideVotes').checked,
+    whispers: document.getElementById('setWhispers').checked,
+    ghostClues: document.getElementById('setGhostClues').checked,
+    nightEvents: document.getElementById('setNightEvents').checked,
+    suspicion: document.getElementById('setSuspicion').checked,
   });
   document.getElementById('settingsModal').classList.remove('open');
   ui.toast('Settings saved');
@@ -188,6 +200,20 @@ document.getElementById('townBoardOk').addEventListener('click', () => {
   document.getElementById('townBoardModal').classList.remove('open');
 });
 
+// ── Evidence Window ──────────────────────────────────────────
+document.getElementById('btnEvidenceWindow').addEventListener('click', () => {
+  game.renderEvidenceWindow();
+  document.getElementById('evidenceWindowModal').classList.add('open');
+});
+
+document.getElementById('evidenceWindowClose').addEventListener('click', () => {
+  document.getElementById('evidenceWindowModal').classList.remove('open');
+});
+
+document.getElementById('evidenceWindowOk').addEventListener('click', () => {
+  document.getElementById('evidenceWindowModal').classList.remove('open');
+});
+
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
@@ -207,3 +233,28 @@ document.addEventListener('keydown', (e) => {
     document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
   }
 });
+
+// ── Cinematic Intro ──────────────────────────────────────────
+(function initIntro() {
+  const overlay = document.getElementById('introOverlay');
+  if (!overlay) return;
+  // Generate particles
+  const pc = document.getElementById('introParticles');
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('div');
+    p.className = 'intro-particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDelay = Math.random() * 3 + 's';
+    p.style.animationDuration = (2 + Math.random() * 3) + 's';
+    p.style.opacity = (0.2 + Math.random() * 0.5);
+    pc.appendChild(p);
+  }
+  // Auto dismiss
+  const dismiss = () => {
+    if (overlay.classList.contains('intro-done')) return;
+    overlay.classList.add('intro-done');
+    setTimeout(() => overlay.remove(), 800);
+  };
+  setTimeout(dismiss, 3500);
+  overlay.addEventListener('click', dismiss);
+})();

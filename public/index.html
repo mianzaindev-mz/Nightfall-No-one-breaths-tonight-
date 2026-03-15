@@ -26,8 +26,30 @@
   <!-- Sound Toggle -->
   <button class="sound-toggle" id="soundToggle" title="Toggle sound" aria-label="Toggle sound">🔊</button>
 
+  <!-- ═══ CINEMATIC INTRO ═══ -->
+  <div id="introOverlay" class="intro-overlay">
+    <div class="intro-particles" id="introParticles"></div>
+    <div class="intro-content">
+      <div class="intro-candle">🕯</div>
+      <div class="intro-title">NIGHT<em>FALL</em></div>
+      <div class="intro-tagline">No one breathes tonight</div>
+      <div class="intro-line"></div>
+      <div class="intro-subtitle">A game of shadows, deception & survival</div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast"></div>
+
+  <!-- Evidence Window Modal (persistent like town board) -->
+  <div class="modal-overlay" id="evidenceWindowModal">
+    <div class="modal" style="max-width:540px">
+      <button class="modal-close" id="evidenceWindowClose" aria-label="Close evidence">&times;</button>
+      <h3>📋 Evidence Board</h3>
+      <div id="evidenceWindowGrid" style="max-height:60vh;overflow-y:auto"></div>
+      <button class="btn btn-out mt8" id="evidenceWindowOk">Close</button>
+    </div>
+  </div>
 
   <!-- Role Reminder (shown during Day) -->
   <div class="role-reminder hidden" id="roleReminder">
@@ -61,6 +83,15 @@
       <div>4–16 players • Play across any device on the same network</div>
       <button class="btn btn-sm btn-out mt8" id="btnRules" style="margin:10px auto 0;display:inline-flex" aria-label="How to play">📜 How to Play</button>
       <div class="stats-bar" id="statsBar"></div>
+    </div>
+  </div>
+
+  <!-- Avatar Picker Modal -->
+  <div class="modal-overlay" id="avatarPickerModal">
+    <div class="modal" style="max-width:400px">
+      <button class="modal-close" id="avatarPickerClose" aria-label="Close">&times;</button>
+      <h3 style="margin-bottom:10px">🎭 Choose Your Avatar</h3>
+      <div class="avatar-grid avatar-grid-full" id="avatarPickerGrid"></div>
     </div>
   </div>
 
@@ -118,7 +149,10 @@
       <div id="cBox" style="display:none">
         <span id="cText"></span>
       </div>
-      <button class="btn btn-sm btn-out mt8" id="btnTownBoard" style="display:none;margin:8px auto" aria-label="View Town Board">📋 Town Board — View All Characters</button>
+      <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-sm btn-out mt8" id="btnTownBoard" style="display:none" aria-label="View Town Board">📋 Town Board</button>
+        <button class="btn btn-sm btn-out mt8" id="btnEvidenceWindow" style="display:none" aria-label="View Evidence">🔍 Evidence Board</button>
+      </div>
       <hr>
       <!-- Chat -->
       <div class="chat-panel" id="chatPanel">
@@ -136,7 +170,10 @@
       <label class="lbl mb8">Vote — Who is the Killer?</label>
       <div id="vList"></div>
       <div class="muted tc mt8" style="font-size:.85rem" id="vStatus"></div>
-      <button class="btn btn-red mt16" id="cvBtn" style="display:none" aria-label="Confirm vote">⚖ Confirm Vote</button>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+        <button class="btn btn-red" id="cvBtn" style="display:none" aria-label="Confirm vote">⚖ Confirm Vote</button>
+        <button class="btn btn-out" id="skipVoteBtn" style="display:none" aria-label="Skip vote">🚫 Abstain</button>
+      </div>
       <div class="dn mt16" id="deadMsg" style="display:none">💀 You were killed — you may observe but cannot vote.</div>
       <!-- Last words input for killed player -->
       <div id="lastWordsPanel" style="display:none" class="mt8">
@@ -241,6 +278,75 @@
             <input type="checkbox" id="setJester">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="lbl">Optional Features <span class="chip cg" style="font-size:.5rem">ON BY DEFAULT</span></label>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">💬 Whispers</div>
+            <div class="toggle-desc">Private 1-on-1 messages during dinner (2 per dinner)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setWhispers" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">👻 Ghost Clues</div>
+            <div class="toggle-desc">Dead players can send one 3-word cryptic message</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setGhostClues" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row feature-disabled">
+          <div>
+            <div class="toggle-label">🌩 Night Events</div>
+            <div class="toggle-desc">Random events during the night that affect gameplay</div>
+          </div>
+          <span class="chip cd" style="font-size:.5rem">EFFECTS WIP</span>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">🎯 Suspicion Voting</div>
+            <div class="toggle-desc">Thumbs up/down players during investigation</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setSuspicion" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row feature-disabled">
+          <div>
+            <div class="toggle-label">🤝 Alliances</div>
+            <div class="toggle-desc">Form secret alliances with other players</div>
+          </div>
+          <span class="chip cd" style="font-size:.5rem">COMING SOON</span>
+        </div>
+        <div class="toggle-row feature-disabled">
+          <div>
+            <div class="toggle-label">📜 Secret Objectives</div>
+            <div class="toggle-desc">Each player gets a hidden side quest</div>
+          </div>
+          <span class="chip cd" style="font-size:.5rem">COMING SOON</span>
+        </div>
+        <div class="toggle-row feature-disabled">
+          <div>
+            <div class="toggle-label">🏚 Haunted Rooms</div>
+            <div class="toggle-desc">Rooms with special effects and traps</div>
+          </div>
+          <span class="chip cd" style="font-size:.5rem">COMING SOON</span>
+        </div>
+        <div class="toggle-row feature-disabled">
+          <div>
+            <div class="toggle-label">🔪 Blind Killers</div>
+            <div class="toggle-desc">Killers don't know each other and can kill each other</div>
+          </div>
+          <span class="chip cd" style="font-size:.5rem">COMING SOON</span>
         </div>
       </div>
 

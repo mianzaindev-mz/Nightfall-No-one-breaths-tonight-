@@ -44,13 +44,50 @@ export function updateSoundToggle(muted) {
 export function renderAvatarGrid(selectedAvatar, onSelect) {
   const grid = document.getElementById('avatarGrid');
   if (!grid) return;
-  grid.innerHTML = AVATARS.map((a, i) =>
-    `<div class="avatar-option${a === selectedAvatar ? ' selected' : ''}" data-idx="${i}" role="button" tabindex="0" aria-label="Select avatar ${a}">${a}</div>`
-  ).join('');
+  const INITIAL_COUNT = 16;
+
+  // Show first 16 + "Show More" button
+  let html = '';
+  AVATARS.slice(0, INITIAL_COUNT).forEach((a, i) => {
+    html += `<div class="avatar-option${a === selectedAvatar ? ' selected' : ''}" data-idx="${i}" role="button" tabindex="0" aria-label="Select avatar ${a}">${a}</div>`;
+  });
+  // If selected is beyond initial, swap it in
+  const selIdx = AVATARS.indexOf(selectedAvatar);
+  if (selIdx >= INITIAL_COUNT) {
+    html = html.replace(/<div class="avatar-option" data-idx="0"/, `<div class="avatar-option" data-idx="0" style="display:none"`);
+    html += `<div class="avatar-option selected" data-idx="${selIdx}" role="button" tabindex="0">${selectedAvatar}</div>`;
+  }
+  html += `<div class="avatar-toggle" id="avatarShowMore">Show More ▾</div>`;
+  grid.innerHTML = html;
+
   grid.onclick = (e) => {
+    if (e.target.closest('#avatarShowMore')) {
+      _openAvatarModal(selectedAvatar, onSelect);
+      return;
+    }
     const opt = e.target.closest('.avatar-option');
     if (opt) onSelect(AVATARS[parseInt(opt.dataset.idx)]);
   };
+}
+
+function _openAvatarModal(selectedAvatar, onSelect) {
+  const modal = document.getElementById('avatarPickerModal');
+  const grid = document.getElementById('avatarPickerGrid');
+  if (!modal || !grid) return;
+
+  grid.innerHTML = AVATARS.map((a, i) =>
+    `<div class="avatar-option${a === selectedAvatar ? ' selected' : ''}" data-idx="${i}" role="button" tabindex="0">${a}</div>`
+  ).join('');
+
+  grid.onclick = (e) => {
+    const opt = e.target.closest('.avatar-option');
+    if (!opt) return;
+    onSelect(AVATARS[parseInt(opt.dataset.idx)]);
+    modal.classList.remove('open');
+  };
+
+  modal.classList.add('open');
+  document.getElementById('avatarPickerClose').onclick = () => modal.classList.remove('open');
 }
 
 // ── Lobby (usernames visible — NOT in game yet) ──────────────
@@ -336,7 +373,7 @@ export function renderTownBoard(boardData) {
   grid.innerHTML = '';
   boardData.forEach(entry => {
     const card = document.createElement('div');
-    card.className = 'dossier-card' + (!entry.alive ? ' pdisconnected' : '');
+    card.className = 'dossier-card' + (!entry.alive ? ' tb-dead' : '');
 
     const pubTraits = entry.pub.map(t =>
       `<div class="dossier-trait"><span class="dossier-trait-label">${t.label}</span><span class="dossier-trait-value">${esc(t.value)}</span></div>`
@@ -350,13 +387,25 @@ export function renderTownBoard(boardData) {
       hiddenSection = `<div class="dossier-locked">🔒 Hidden details — investigate to reveal</div>`;
     }
 
+    // Death overlay for dead players
+    let deathOverlay = '';
+    if (!entry.alive) {
+      const deathLabel = entry.deathType === 'executed' ? 'EXECUTED' : 'KILLED';
+      const deathIcon = entry.deathType === 'executed' ? '⚖' : '💀';
+      const deathClass = entry.deathType === 'executed' ? 'tb-death-executed' : 'tb-death-killed';
+      const roleMap = { killer: '☠ Killer', detective: '🔍 Detective', doctor: '🩺 Doctor', jester: '🤡 Jester', civilian: '👤 Civilian' };
+      const roleName = entry.role ? (roleMap[entry.role] || entry.role) : 'Unknown';
+      deathOverlay = `<div class="tb-death-overlay ${deathClass}"><div class="tb-death-icon">${deathIcon}</div><div class="tb-death-label">${deathLabel}</div><div class="tb-death-role">${roleName}</div></div>`;
+    }
+
     card.innerHTML =
       `<div class="dossier-header">` +
         `<span class="dossier-icon">${entry.persona.icon}</span>` +
-        `<span class="dossier-name">${esc(entry.persona.name)}${entry.isMe ? ' <span class="badge by" style="font-size:.5rem">YOU</span>' : ''}${!entry.alive ? ' <span class="muted" style="font-size:.7rem">☠ DEAD</span>' : ''}</span>` +
+        `<span class="dossier-name">${esc(entry.persona.name)}${entry.isMe ? ' <span class="badge by" style="font-size:.5rem">YOU</span>' : ''}</span>` +
       `</div>` +
       `<div class="dossier-traits">${pubTraits}</div>` +
-      hiddenSection;
+      hiddenSection +
+      deathOverlay;
 
     grid.appendChild(card);
   });
@@ -374,7 +423,7 @@ export function addLog(txt, cls = 'ls') {
   if (!log) return;
   const d = document.createElement('div');
   d.className = cls;
-  d.textContent = txt;
+  d.innerHTML = txt;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
 }

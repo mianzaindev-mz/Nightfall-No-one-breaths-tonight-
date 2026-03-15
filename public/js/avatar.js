@@ -30,6 +30,14 @@ const PERSONA_NAMES = [
   { name: 'The Thistle',     icon: '🌾' }, { name: 'The Rook',        icon: '♜' },
   { name: 'The Coral',       icon: '🪸' }, { name: 'The Sundial',     icon: '☀' },
   { name: 'The Ash',         icon: '🌫' }, { name: 'The Siren',       icon: '🧜' },
+  { name: 'The Warden',      icon: '🛡' },  { name: 'The Wraith',      icon: '💀' },
+  { name: 'The Nomad',       icon: '🧳' }, { name: 'The Chimera',     icon: '🐲' },
+  { name: 'The Widow',       icon: '🕸' },  { name: 'The Pilgrim',     icon: '🚶' },
+  { name: 'The Sentinel',    icon: '🗼' }, { name: 'The Forge',       icon: '⚒' },
+  { name: 'The Revenant',    icon: '🦇' }, { name: 'The Oracle',      icon: '🔮' },
+  { name: 'The Tempest',     icon: '🌪' },  { name: 'The Relic',       icon: '📿' },
+  { name: 'The Mariner',     icon: '⛵' }, { name: 'The Cipher',      icon: '🔐' },
+  { name: 'The Sculptor',    icon: '🎨' }, { name: 'The Vesper',      icon: '🌙' },
 ];
 
 // ── PUBLIC TRAIT POOLS ───────────────────────────────────────

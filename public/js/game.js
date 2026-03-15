@@ -25,7 +25,7 @@ export default class Game {
     this.phase = 'lobby';
     this.round = 0;
     this.myRole = null;
-    this.settings = { dayTime: 60, nightTime: 30, investTime: 40, doctor: false, jester: false, hideVotes: true };
+    this.settings = { dayTime: 60, nightTime: 30, investTime: 40, doctor: false, jester: false, hideVotes: true, whispers: true, ghostClues: true, nightEvents: true, suspicion: true };
 
     // Characters
     this.charData = {};
@@ -150,7 +150,7 @@ export default class Game {
     n.on('KILL_ACTION', d => {
       if (this.isHost) {
         this.nightActions[d._from] = d.targetId;
-        if (d.killClue?.text) this.killClues.push({ text: d.killClue.text, accuracyPct: d.killClue.accuracyPct, isFalse: d.killClue.isFalse });
+        if (d.killClue?.text) this.killClues.push({ text: d.killClue.text, accuracyPct: d.killClue.accuracyPct, isFalse: d.killClue.isFalse, strength: d.killClue.strength });
         this.killCounts[d._from] = (this.killCounts[d._from] || 0) + 1;
         this._checkNightDone();
       }
@@ -213,6 +213,8 @@ export default class Game {
   voteSkip() {
     if (this.mySkipVoted) return;
     if (this.phase !== 'grace' && this.phase !== 'investigate') return;
+    const me = this.players.find(p => p.id === this.myId);
+    if (me && !me.alive) { ui.toast('Dead players cannot vote to skip', true); return; }
     this.mySkipVoted = true;
     const btn = document.getElementById('btnSkip');
     if (btn) { btn.disabled = true; btn.textContent = '✓ Voted to skip'; }
@@ -282,9 +284,11 @@ export default class Game {
     const lwPanel = document.getElementById('lastWordsPanel');
     if (lwPanel) lwPanel.style.display = 'none';
 
-    // Show Town Board button
+    // Show Town Board + Evidence buttons
     const tbBtn = document.getElementById('btnTownBoard');
     if (tbBtn) tbBtn.style.display = 'inline-flex';
+    const ewBtn = document.getElementById('btnEvidenceWindow');
+    if (ewBtn) ewBtn.style.display = 'inline-flex';
 
     // Enable chat during grace period
     const chatPanel = document.getElementById('chatPanel');
@@ -354,7 +358,7 @@ export default class Game {
     this.suspicionVotes = {}; this.mySuspicionVotes = new Set();
     this.whispersUsed = 0; this.ghostClueUsed = false;
     // Night event
-    this.currentNightEvent = this._rollNightEvent();
+    this.currentNightEvent = this.settings.nightEvents !== false ? this._rollNightEvent() : null;
     const dur = this.settings.nightTime * 1000;
     const nightPayload = { t: 'NIGHT', round: this.round, dur };
     if (this.currentNightEvent) {
@@ -384,7 +388,17 @@ export default class Game {
     const alive = this.players.filter(p => p.alive && p.id !== this.myId);
     if (!me || !me.alive) { ui.renderNightCivilianUI(); return; }
 
-    if (this.myRole === 'killer') this._showKillerNight(alive);
+    if (this.myRole === 'killer') {
+      // Filter out fellow killers (they know each other)
+      const killerIds = this.players.filter(p => p.role === 'killer' && p.id !== this.myId).map(p => p.id);
+      const nonKillerAlive = alive.filter(p => !killerIds.includes(p.id));
+      // Show ally info
+      if (killerIds.length > 0) {
+        const allyNames = killerIds.map(id => this._pname(id)).join(', ');
+        ui.addLog(`☠ Your fellow killer${killerIds.length > 1 ? 's' : ''}: ${allyNames}`, 'lk');
+      }
+      this._showKillerNight(nonKillerAlive);
+    }
     else if (this.myRole === 'doctor') this._showDoctorNight(alive);
     else {
       // Civilians/Detective wait during night — investigation comes AFTER
@@ -416,7 +430,15 @@ export default class Game {
         // Pass all characters for potential false evidence
         const allChars = this._hostCharacters || new Map();
         const killClue = generateKillClue(killerChar, score, myKills, allChars, this.myId);
-        if (this.isHost) { this.nightActions[this.myId] = tid; if (killClue.text) this.killClues.push({ text: killClue.text, accuracyPct: killClue.accuracyPct, isFalse: killClue.isFalse }); this.killCounts[this.myId] = myKills + 1; this._checkNightDone(); }
+        // Kill confirmation + perfect kill feedback
+        if (!killClue.text) {
+          ui.toast('☠ Clean kill — no trace left behind.', false);
+          ui.addLog('☠ Perfect kill! No evidence was left.', 'lk');
+        } else {
+          const strengthMsg = { trace: 'barely left a mark', small: 'left a small trace', medium: 'left some evidence', large: 'left strong evidence', perfect: 'left damning evidence' };
+          ui.toast(`🗡 Target marked. You ${strengthMsg[killClue.strength] || 'left evidence'}.`, false);
+        }
+        if (this.isHost) { this.nightActions[this.myId] = tid; if (killClue.text) this.killClues.push({ text: killClue.text, accuracyPct: killClue.accuracyPct, isFalse: killClue.isFalse, strength: killClue.strength }); this.killCounts[this.myId] = myKills + 1; this._checkNightDone(); }
         else this.net.relay({ t: 'KILL_ACTION', targetId: tid, killClue });
       }
     };
@@ -460,9 +482,9 @@ export default class Game {
     const investDur = (this.settings.investTime || 40) * 1000;
     // Add kill clues to evidence ledger as UNVERIFIED
     this.killClues.forEach(c => {
-      this.evidenceLedger.push({ id: 'ev-' + Math.random().toString(36).slice(2,8), text: c.text, isFalse: c.isFalse, status: 'unverified', accuracyPct: null, verdictText: null, source: 'crime-scene', round: this.round });
+      this.evidenceLedger.push({ id: 'ev-' + Math.random().toString(36).slice(2,8), text: c.text, isFalse: c.isFalse, status: 'unverified', accuracyPct: null, verdictText: null, source: 'crime-scene', round: this.round, strength: c.strength || 'medium' });
     });
-    const payload = { t: 'INVESTIGATE', round: this.round, killedId, savedId, evidence: this.evidenceLedger.filter(e => e.round === this.round && e.source === 'crime-scene').map(e => ({ id: e.id, text: e.text })), dur: investDur, pa: this.players.map(p => ({ id: p.id, alive: p.alive })) };
+    const payload = { t: 'INVESTIGATE', round: this.round, killedId, savedId, evidence: this.evidenceLedger.filter(e => e.round === this.round && e.source === 'crime-scene').map(e => ({ id: e.id, text: e.text, strength: e.strength })), dur: investDur, pa: this.players.map(p => ({ id: p.id, alive: p.alive })) };
     this.net.relay(payload);
     this._onInvestigate(payload);
   }
@@ -486,7 +508,7 @@ export default class Game {
     if (!this.isHost && d.evidence?.length) {
       d.evidence.forEach(e => {
         if (!this.evidenceLedger.find(x => x.id === e.id)) {
-          this.evidenceLedger.push({ id: e.id, text: e.text, isFalse: false, status: 'unverified', accuracyPct: null, verdictText: null, source: 'crime-scene', round: this.round });
+          this.evidenceLedger.push({ id: e.id, text: e.text, isFalse: false, status: 'unverified', accuracyPct: null, verdictText: null, source: 'crime-scene', round: this.round, strength: e.strength || 'medium' });
         }
       });
     }
@@ -525,6 +547,8 @@ export default class Game {
 
     const tbBtn = document.getElementById('btnTownBoard');
     if (tbBtn) tbBtn.style.display = 'inline-flex';
+    const ewBtn = document.getElementById('btnEvidenceWindow');
+    if (ewBtn) ewBtn.style.display = 'inline-flex';
 
     const me = this.players.find(p => p.id === this.myId);
     const isDead = me && !me.alive;
@@ -546,7 +570,7 @@ export default class Game {
     }
 
     // Suspicion voting UI
-    if (me && me.alive && !me._isBot) this._showSuspicionUI();
+    if (me && me.alive && !me._isBot && this.settings.suspicion !== false) this._showSuspicionUI();
 
     // Bot auto-actions during investigation
     if (this.isHost) this._botInvestigate();
@@ -595,9 +619,9 @@ export default class Game {
     // Option 1: Investigate a suspect
     html += `<div style="margin-bottom:6px"><div class="evidence-label" style="margin-bottom:4px">🔎 INVESTIGATE A SUSPECT</div><div id="investList"></div></div>`;
 
-    // Option 2: Verify evidence (detective + civilians can both do this but detective is better)
-    if (unverified.length > 0) {
-      html += `<div style="margin-top:8px"><div class="evidence-label" style="margin-bottom:4px">${isDet ? '🔬 VERIFY EVIDENCE (trained)' : '🔬 VERIFY EVIDENCE (amateur)'}</div><div id="verifyList"></div></div>`;
+    // Option 2: Verify evidence — DETECTIVE ONLY
+    if (isDet && unverified.length > 0) {
+      html += `<div style="margin-top:8px"><div class="evidence-label" style="margin-bottom:4px">🔬 VERIFY EVIDENCE (detective only)</div><div id="verifyList"></div></div>`;
     }
 
     html += `<div id="investQTE" style="display:none"></div><div id="investResult" style="display:none" class="evidence-box"></div>`;
@@ -657,12 +681,21 @@ export default class Game {
 
     // Add to evidence ledger as unverified
     const evId = 'ev-' + Math.random().toString(36).slice(2, 8);
-    this.evidenceLedger.push({ id: evId, text: result.text, isFalse: result.isFalse, status: 'unverified', accuracyPct: null, verdictText: null, source: 'investigation', round: this.round });
+    this.evidenceLedger.push({ id: evId, text: result.text, isFalse: result.isFalse, status: 'unverified', accuracyPct: null, verdictText: null, source: 'investigation', round: this.round, strength: result.isStrong ? 'large' : 'medium' });
 
     const resEl = document.getElementById('investResult');
     if (resEl) { resEl.innerHTML = `<span class="evidence-label">🔎 INVESTIGATION REPORT</span>${formatEvidence(result.text, 'unverified')}`; resEl.style.display = 'block'; }
     this.myActionsUsed++;
     if (!isDet && this.myRole !== 'killer') this.civilianActionsUsed++;
+
+    // Mood-based notification with varied atmospheric fail messages
+    if (!result.success) {
+      const failMsgs = ['The shadows hide their secrets well...', 'Your search turned up empty — for now.', 'The evidence slipped through your fingers.', 'Nothing of value was found... this time.', 'The manor guards its secrets jealously.'];
+      ui.addLog(failMsgs[Math.floor(Math.random() * failMsgs.length)], 'ls');
+      this._showMoodNotification(score, 'investigate-fail');
+    } else {
+      this._showMoodNotification(score, 'investigate');
+    }
 
     if (this.isHost) this.investigationClues.push({ playerId: this.myId, clue: result.text, isFalse: result.isFalse });
     else this.net.relay({ t: 'INVEST_RESULT', clue: result.text, isFalse: result.isFalse });
@@ -679,12 +712,11 @@ export default class Game {
   async _doVerify(evId) {
     const ev = this.evidenceLedger.find(e => e.id === evId);
     if (!ev) return;
-    const isDet = this.myRole === 'detective';
+    // Only detective can verify
+    if (this.myRole !== 'detective') { ui.toast('Only the detective can verify evidence', true); return; }
     const il = document.getElementById('investList'); if (il) il.style.display = 'none';
     const vl = document.getElementById('verifyList'); if (vl) vl.style.display = 'none';
     const diff = getVerifyDifficulty();
-    // Civilians get harder verification
-    if (!isDet) { diff.level = 2; diff.label = 'Amateur Forensics'; }
     const qteArea = document.getElementById('investQTE');
     if (qteArea) { qteArea.style.display = 'block'; qteArea.innerHTML = ''; }
     const score = await runQTE(qteArea, diff, 'verify');
@@ -706,7 +738,9 @@ export default class Game {
     }
 
     this.myActionsUsed++;
-    if (!isDet && this.myRole !== 'killer') this.civilianActionsUsed++;
+
+    // Mood-based verification notification
+    this._showMoodNotification(score, 'verify', result.accuracyPct);
 
     const investSkip = document.getElementById('investSkipArea'); if (investSkip) investSkip.remove();
 
@@ -765,7 +799,7 @@ export default class Game {
 
     if (isDead) {
       // Ghost clue for dead players
-      if (!this.ghostClueUsed) {
+      if (!this.ghostClueUsed && this.settings.ghostClues !== false) {
         chat.addMessage('', '👻 You are dead. You may leave ONE cryptic 3-word clue for the living.', 'system');
         chat.setEnabled(false);
         this._showGhostClueInput();
@@ -775,9 +809,9 @@ export default class Game {
       }
     } else {
       chat.setEnabled(true);
-      chat.addMessage('', '🍽 Take your seat. Discuss what you found.', 'system');
+      chat.addMessage('', '🍽 The candelabras flicker as you take your seat. Someone at this table is a killer... discuss what you know.', 'system');
       // Whisper button
-      this._showWhisperUI();
+      if (this.settings.whispers !== false) this._showWhisperUI();
     }
 
     // Evidence Board button
@@ -798,6 +832,10 @@ export default class Game {
     } else if (lwPanel) lwPanel.style.display = 'none';
 
     this._renderVotes();
+
+    // Show skip/abstain button for living players
+    const skipVoteBtn = document.getElementById('skipVoteBtn');
+    if (skipVoteBtn && !isDead) { skipVoteBtn.style.display = 'flex'; }
 
     // Bot auto-vote after 3s
     if (this.isHost) setTimeout(() => this._botVote(), 3000);
@@ -829,17 +867,32 @@ export default class Game {
     if (!this.selVote || this.voted) return;
     this.voted = true;
     document.getElementById('cvBtn').style.display = 'none';
+    document.getElementById('skipVoteBtn').style.display = 'none';
     document.getElementById('vStatus').textContent = '✓ Vote cast';
     if (this.isHost) { this.votes[this.myId] = this.selVote; this.net.relay({ t: 'VOTE_UPDATE', votes: this.votes }); this._checkVoteDone(); }
     else this.net.relay({ t: 'VOTE', targetId: this.selVote });
     audio.haptic([40]);
   }
 
+  skipVote() {
+    if (this.voted) return;
+    this.voted = true;
+    document.getElementById('cvBtn').style.display = 'none';
+    document.getElementById('skipVoteBtn').style.display = 'none';
+    document.getElementById('vStatus').textContent = '🚫 Abstained';
+    if (this.isHost) { this.votes[this.myId] = 'SKIP'; this.net.relay({ t: 'VOTE_UPDATE', votes: this.votes }); this._checkVoteDone(); }
+    else this.net.relay({ t: 'VOTE', targetId: 'SKIP' });
+    ui.toast('You abstained from voting');
+  }
+
   _checkVoteDone() { if (Object.keys(this.votes).length >= this.players.filter(p => p.alive).length) { clearInterval(this.dayInterval); this._closeVote(); } }
 
   _closeVote() {
     if (!this.isHost) return;
-    const tally = {}; Object.values(this.votes).forEach(v => { tally[v] = (tally[v] || 0) + 1; });
+    // Filter out SKIP votes from tally
+    const tally = {};
+    Object.entries(this.votes).forEach(([voterId, v]) => { if (v !== 'SKIP') tally[v] = (tally[v] || 0) + 1; });
+    const skipCount = Object.values(this.votes).filter(v => v === 'SKIP').length;
     const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
     let exId = null;
     if (sorted.length && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) exId = sorted[0][0];
@@ -857,7 +910,7 @@ export default class Game {
       const payload = { t: 'GAMEOVER', winner: w, players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: p.alive, role: p.role })), tally, exId, isJester, jesterWinner: this.jesterWinner, charData: this.charData, voteHistory: this.voteHistory };
       this.net.relay(payload); this._onGameOver(payload);
     } else {
-      const payload = { t: 'VERDICT', tally, exId, isJester, pa: this.players.map(p => ({ id: p.id, alive: p.alive, role: p.role })), jesterWinner: this.jesterWinner, voteHistory: this.voteHistory, recap: this.roundRecap[this.round] };
+      const payload = { t: 'VERDICT', tally, exId, isJester, skipCount, pa: this.players.map(p => ({ id: p.id, alive: p.alive, role: p.role })), jesterWinner: this.jesterWinner, voteHistory: this.voteHistory, recap: this.roundRecap[this.round] };
       this.net.relay(payload); this._onVerdict(payload);
     }
   }
@@ -884,9 +937,22 @@ export default class Game {
     if (ex) {
       const info = getRoleInfo(ex.role);
       const roleLabel = ex.role === 'killer' ? '☠ KILLER' : ex.role === 'jester' ? '🤡 JESTER' : `😇 ${info.name.toUpperCase()} — INNOCENT`;
-      ui.addLog(`${this._pname(d.exId)} was executed. They were: ${roleLabel}`, 'lv');
+      const dramaMsgs = {
+        killer: `The town seized ${this._pname(d.exId)} and dragged them into the light. The truth was revealed: ☠ THEY WERE THE KILLER.`,
+        detective: `The town made a grave mistake. ${this._pname(d.exId)} was the DETECTIVE — the last hope for justice. Darkness closes in.`,
+        doctor: `An innocent healer falls. ${this._pname(d.exId)} was the DOCTOR — now who will save the wounded?`,
+        jester: `${this._pname(d.exId)} erupts in laughter as they're led away. 🤡 THE JESTER WINS! They wanted this all along.`,
+        civilian: `${this._pname(d.exId)} was dragged before the crowd and executed. They were innocent... 😇 The town has blood on its hands.`,
+      };
+      ui.addLog(dramaMsgs[ex.role] || `${this._pname(d.exId)} was executed. They were: ${roleLabel}`, 'lv');
       audio.play(d.isJester ? 'jester' : ex.role === 'killer' ? 'bad' : 'good');
+
+      // ── Dramatic reveal for special roles ──
+      if (ex.role !== 'civilian') {
+        this._showDramaticDeath(ex, d.isJester);
+      }
     }
+    if (d.skipCount) ui.addLog(`🚫 ${d.skipCount} player${d.skipCount > 1 ? 's' : ''} abstained`, 'ls');
     ui.renderVoteBars(d.tally, this.players.map(p => ({ ...p, name: this._pname(p.id), avatar: this.charData[p.id]?.persona?.icon || '❓' })));
 
     // ── Round Recap ───────────────────────────────────
@@ -944,7 +1010,7 @@ export default class Game {
     this.phase = 'lobby'; this.players.forEach(p => { p.role = null; p.alive = true; });
     this.myRole = null; this.selVote = null; this.voted = false; this.jesterWinner = null;
     this.lastDoctorSelf = false; this.charData = {}; this.myPersona = null; this.myCharacter = null;
-    this._hostCharacters = null; this._hostPersonas = null; this.killCounts = {};
+    this._hostCharacters = null; this._hostPersonas = null; this.killCounts = {}; this.bots = [];
     this.evidenceLedger = []; this.myActionsUsed = 0; this.civilianActionsUsed = 0;
     this.voteHistory = []; this.whispersUsed = 0; this.ghostClueUsed = false;
     this.currentNightEvent = null; this.suspicionVotes = {}; this.mySuspicionVotes = new Set();
@@ -973,13 +1039,86 @@ export default class Game {
     clearTimeout(this.lastWordsTimeout);
   }
 
+  // ══════════════════════════════════════════════════════════
+  // DRAMATIC DEATH REVEAL
+  // ══════════════════════════════════════════════════════════
+  _showDramaticDeath(player, isJester) {
+    const roleConfigs = {
+      killer: { icon: '☠', title: 'THE DARKNESS RETREATS', subtitle: 'The killer has been unmasked.', color: '#e53935', glow: 'rgba(229,57,53,.3)', message: `${player._displayName || player.name} was the KILLER all along!` },
+      detective: { icon: '🔍', title: 'THE EYES GO DARK', subtitle: 'The detective has fallen.', color: '#42a5f5', glow: 'rgba(66,165,245,.3)', message: `${player._displayName || player.name} was the DETECTIVE — who will seek the truth now?` },
+      doctor: { icon: '💊', title: 'NO ONE CAN SAVE THEM NOW', subtitle: 'The doctor is gone.', color: '#66bb6a', glow: 'rgba(102,187,106,.3)', message: `${player._displayName || player.name} was the DOCTOR — the killer roams free.` },
+      jester: { icon: '🃏', title: 'CHAOS WINS', subtitle: 'The fool laughs last.', color: '#ab47bc', glow: 'rgba(171,71,188,.3)', message: `${player._displayName || player.name} was the JESTER — and you fell for it!` },
+    };
+    const config = roleConfigs[player.role] || { icon: '💀', title: 'A SOUL DEPARTS', subtitle: 'An innocent was lost.', color: '#f9a825', glow: 'rgba(249,168,37,.3)', message: `${player._displayName || player.name} was innocent.` };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dramatic-death-overlay';
+    overlay.innerHTML = `
+      <div class="dramatic-death-card" style="--dd-color:${config.color};--dd-glow:${config.glow}">
+        <div class="dd-icon">${config.icon}</div>
+        <div class="dd-title">${config.title}</div>
+        <div class="dd-subtitle">${config.subtitle}</div>
+        <div class="dd-divider"></div>
+        <div class="dd-message">${config.message}</div>
+        <div class="dd-role">${player.role.toUpperCase()}</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    // Auto dismiss after 4s
+    setTimeout(() => {
+      overlay.classList.add('dd-fadeout');
+      setTimeout(() => overlay.remove(), 600);
+    }, 4000);
+    // Click to dismiss early
+    overlay.onclick = () => { overlay.classList.add('dd-fadeout'); setTimeout(() => overlay.remove(), 600); };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // MOOD-BASED NOTIFICATIONS
+  // ══════════════════════════════════════════════════════════
+  _showMoodNotification(score, type, accuracy = null) {
+    const msgs = {
+      investigate: {
+        high:   ['🌟 Breakthrough! Strong evidence found!', '🔍 Sharp eyes! Clear evidence uncovered!', '✨ Excellent work! This could change everything!'],
+        medium: ['🔎 Found something... it may prove useful.', '📝 Evidence gathered — every clue matters.', '🔍 Moderate findings. Keep searching.'],
+        low:    ['😞 Barely anything useful was found...', '😔 A frustrating search... very little to go on.', '💨 Almost nothing... the trail has gone cold.'],
+      },
+      'investigate-fail': {
+        high:  ['😐 Nothing substantial despite your best effort.'],
+        medium: ['😕 The search yielded nothing... try a different angle.'],
+        low:   ['😞 A complete dead end. Nothing was found.', '💀 Silence. The clues elude you entirely.'],
+      },
+      verify: {
+        high:   ['🔬 Crystal clear analysis! Evidence assessed with confidence!', '✅ Forensic precision! The truth becomes clearer!'],
+        medium: ['🔬 Partial analysis... some clarity, but doubts remain.', '🧪 The forensics were inconclusive in places.'],
+        low:    ['😰 The analysis was muddled... hard to trust these results.', '🔴 Uncertain findings... the evidence remains a mystery.'],
+      },
+    };
+
+    const tier = score >= 0.7 ? 'high' : score >= 0.4 ? 'medium' : 'low';
+    const pool = msgs[type]?.[tier] || msgs.investigate.medium;
+    const msg = pool[Math.floor(Math.random() * pool.length)];
+    const moodClass = tier === 'high' ? 'mood-celebratory' : tier === 'medium' ? 'mood-neutral' : 'mood-somber';
+
+    // Create floating notification
+    const notif = document.createElement('div');
+    notif.className = `mood-notif ${moodClass}`;
+    notif.innerHTML = `<div class="mood-text">${msg}</div>`;
+    if (accuracy !== null) notif.innerHTML += `<div class="mood-detail">Analysis accuracy: ${accuracy}%</div>`;
+    document.body.appendChild(notif);
+    setTimeout(() => { notif.classList.add('mood-fadeout'); setTimeout(() => notif.remove(), 600); }, 3500);
+  }
+
   updateSettings(s) { this.settings = { ...this.settings, ...s }; if (this.isHost) this.net.relay({ t: 'SETTINGS', settings: this.settings }); }
 
   getTownBoardData() {
     const board = [];
     Object.entries(this.charData).forEach(([id, data]) => {
       const p = this.players.find(x => x.id === id);
-      board.push({ id, persona: data.persona, pub: getPublicDesc({ pub: data.pub }), hidden: data.hidden ? getHiddenDesc({ hidden: data.hidden }) : null, alive: p ? p.alive : true, isMe: id === this.myId });
+      const alive = p ? p.alive : true;
+      const role = !alive ? p?.role : null;
+      const deathType = !alive ? (this.voteHistory.find(vh => vh.exId === id) ? 'executed' : 'killed') : null;
+      board.push({ id, persona: data.persona, pub: getPublicDesc({ pub: data.pub }), hidden: data.hidden ? getHiddenDesc({ hidden: data.hidden }) : null, alive, isMe: id === this.myId, role, deathType });
     });
     return board;
   }
@@ -1090,7 +1229,8 @@ export default class Game {
       if (words.length !== 3) { ui.toast('Exactly 3 words!', true); return; }
       this.ghostClueUsed = true;
       this.net.relay({ t: 'GHOST_CLUE', text: words.join(' ') });
-      chat.addMessage('', `👻 Your ghost clue: "${words.join(' ')}"`, 'ghost');
+      chat.addMessage('', `👻 Your message echoes through the manor... "${words.join(' ')}"`, 'ghost');
+      ui.toast('Your whisper from beyond has been delivered...');
       gcDiv.remove();
     };
   }
@@ -1177,17 +1317,24 @@ export default class Game {
     modal.className = 'overlay-modal';
     const byRound = {};
     this.evidenceLedger.forEach(e => { if (!byRound[e.round]) byRound[e.round] = []; byRound[e.round].push(e); });
-    let html = `<div class="modal-card" style="max-width:500px;max-height:80vh;overflow-y:auto"><div class="recap-title">📋 EVIDENCE BOARD</div>`;
-    if (!this.evidenceLedger.length) { html += `<div class="muted" style="padding:12px;text-align:center">No evidence collected yet.</div>`; }
+    const totalVerified = this.evidenceLedger.filter(e => e.status === 'verified').length;
+    let html = `<div class="modal-card" style="max-width:520px;max-height:80vh;overflow-y:auto"><div class="recap-title">📋 EVIDENCE BOARD</div>`;
+    html += `<div class="eb-stats"><span>🗂 ${this.evidenceLedger.length} total</span><span>✅ ${totalVerified} verified</span><span>❓ ${this.evidenceLedger.length - totalVerified} unverified</span></div>`;
+    if (!this.evidenceLedger.length) { html += `<div class="muted" style="padding:20px;text-align:center">No evidence collected yet.<br><span style="font-size:.7rem">Evidence is found at crime scenes and through investigation.</span></div>`; }
     Object.entries(byRound).sort((a,b) => Number(a[0]) - Number(b[0])).forEach(([round, evs]) => {
-      html += `<div class="eb-round"><div class="eb-round-header">Night ${round}</div>`;
+      const rv = evs.filter(e => e.status === 'verified').length;
+      html += `<div class="eb-round"><div class="eb-round-header">Night ${round} <span class="eb-round-count">${evs.length} clue${evs.length > 1 ? 's' : ''}${rv ? `, ${rv} verified` : ''}</span></div>`;
       evs.forEach(e => {
         const statusIcon = e.status === 'verified'
           ? (e.accuracyPct >= 70 ? '🟢' : e.accuracyPct >= 30 ? '🟡' : '🔴')
           : '❓';
         const statusLabel = e.status === 'verified' ? `${e.accuracyPct}%` : 'Unverified';
         const sourceLabel = e.source === 'crime-scene' ? '🔍 Crime Scene' : '🔎 Investigation';
-        html += `<div class="eb-evidence"><span class="eb-status">${statusIcon} ${statusLabel}</span><span class="eb-source">${sourceLabel}</span><div class="eb-text">${e.text}</div>${e.verdictText ? `<div class="eb-verdict">${e.verdictText}</div>` : ''}</div>`;
+        // Strength badge
+        const strengthMap = { none: { label: 'No Evidence', color: '#555' }, trace: { label: 'Trace', color: '#888' }, small: { label: 'Small', color: '#42a5f5' }, medium: { label: 'Medium', color: '#f9a825' }, large: { label: 'Strong', color: '#e53935' }, perfect: { label: '★ Perfect', color: '#ffd700' } };
+        const str = strengthMap[e.strength] || strengthMap.medium;
+        const strengthBadge = e.strength ? `<span class="eb-strength" style="color:${str.color};border-color:${str.color}">${str.label}</span>` : '';
+        html += `<div class="eb-evidence" style="border-left:3px solid ${str?.color || 'rgba(255,255,255,.1)'}"><div class="eb-evidence-header">${statusIcon} <span class="eb-status">${statusLabel}</span>${strengthBadge}<span class="eb-source">${sourceLabel}</span></div><div class="eb-text">${e.text}</div>${e.verdictText ? `<div class="eb-verdict">${e.verdictText}</div>` : ''}</div>`;
       });
       html += `</div>`;
     });
@@ -1195,6 +1342,36 @@ export default class Game {
     modal.innerHTML = html;
     document.body.appendChild(modal);
     document.getElementById('ebClose').onclick = () => modal.remove();
+  }
+
+  // ── Evidence Window (dedicated modal, like town board) ─────
+  renderEvidenceWindow() {
+    const grid = document.getElementById('evidenceWindowGrid');
+    if (!grid) return;
+    const byRound = {};
+    this.evidenceLedger.forEach(e => { if (!byRound[e.round]) byRound[e.round] = []; byRound[e.round].push(e); });
+    const totalVerified = this.evidenceLedger.filter(e => e.status === 'verified').length;
+    let html = `<div class="eb-stats"><span>🗂 ${this.evidenceLedger.length} total</span><span>✅ ${totalVerified} verified</span><span>❓ ${this.evidenceLedger.length - totalVerified} unverified</span></div>`;
+    if (!this.evidenceLedger.length) {
+      html += `<div class="muted" style="padding:20px;text-align:center">No evidence collected yet.<br><span style="font-size:.7rem">Evidence is found at crime scenes and through investigation.</span></div>`;
+    }
+    Object.entries(byRound).sort((a,b) => Number(a[0]) - Number(b[0])).forEach(([round, evs]) => {
+      const rv = evs.filter(e => e.status === 'verified').length;
+      html += `<div class="eb-round"><div class="eb-round-header">Night ${round} <span class="eb-round-count">${evs.length} clue${evs.length > 1 ? 's' : ''}${rv ? `, ${rv} verified` : ''}</span></div>`;
+      evs.forEach(e => {
+        const statusIcon = e.status === 'verified'
+          ? (e.accuracyPct >= 70 ? '🟢' : e.accuracyPct >= 30 ? '🟡' : '🔴')
+          : '❓';
+        const statusLabel = e.status === 'verified' ? `${e.accuracyPct}%` : 'Unverified';
+        const sourceLabel = e.source === 'crime-scene' ? '🔍 Crime Scene' : '🔎 Investigation';
+        const strengthMap = { none: { label: 'No Evidence', color: '#555' }, trace: { label: 'Trace', color: '#888' }, small: { label: 'Small', color: '#42a5f5' }, medium: { label: 'Medium', color: '#f9a825' }, large: { label: 'Strong', color: '#e53935' }, perfect: { label: '★ Perfect', color: '#ffd700' } };
+        const str = strengthMap[e.strength] || strengthMap.medium;
+        const strengthBadge = e.strength ? `<span class="eb-strength" style="color:${str.color};border-color:${str.color}">${str.label}</span>` : '';
+        html += `<div class="eb-evidence" style="border-left:3px solid ${str?.color || 'rgba(255,255,255,.1)'}"><div class="eb-evidence-header">${statusIcon} <span class="eb-status">${statusLabel}</span>${strengthBadge}<span class="eb-source">${sourceLabel}</span></div><div class="eb-text">${e.text}</div>${e.verdictText ? `<div class="eb-verdict">${e.verdictText}</div>` : ''}</div>`;
+      });
+      html += `</div>`;
+    });
+    grid.innerHTML = html;
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1274,7 +1451,7 @@ export default class Game {
         const allChars = this._hostCharacters || new Map();
         const myKills = this.killCounts[bot.id] || 0;
         const killClue = generateKillClue(killerChar, score, myKills, allChars, bot.id);
-        if (killClue.text) this.killClues.push({ text: killClue.text, isFalse: killClue.isFalse });
+        if (killClue.text) this.killClues.push({ text: killClue.text, isFalse: killClue.isFalse, strength: killClue.strength });
         this.killCounts[bot.id] = myKills + 1;
       } else if (bot.role === 'doctor') {
         this.doctorTarget = target.id;

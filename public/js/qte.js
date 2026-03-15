@@ -40,50 +40,73 @@ export function formatEvidence(text, status = 'unverified', accuracyPct = null, 
 }
 
 // ── KILL CLUE GENERATION ─────────────────────────────────────
-// Evidence drops but we DON'T know if it's true or false
-// False chance is baked in silently (only host knows the truth)
+// Killer ALWAYS drops evidence. Better QTE = smaller/vaguer evidence.
+// Worse QTE = bigger, more revealing evidence.
+// RARE: perfect kill (no evidence) or perfect evidence (ultra-detailed).
 export function generateKillClue(killerCharacter, score, killCount, allCharacters = null, killerId = null) {
-  // Perfect kill + lucky: no evidence at all
-  if (score >= 1.0 && Math.random() > 0.3) {
+  // ★ PERFECT KILL — 5% chance on near-flawless QTE: absolutely zero evidence
+  if (score >= 0.98 && Math.random() < 0.05) {
     return { strength: 'none', text: null, isFalse: false };
   }
 
+  // ★ PERFECT EVIDENCE — 3% chance on terrible QTE: ultra-detailed, damning
+  if (score < 0.3 && Math.random() < 0.03) {
+    const h = killerCharacter.hidden;
+    const details = [
+      `A witness clearly saw ${getPublicTraitClue(killerCharacter)} flee the scene. They smelled ${h.perfume.toLowerCase()} and noticed ${h.mark.toLowerCase()}.`,
+      `Unmistakable evidence: ${h.secretItem.toLowerCase()} was dropped at the scene. The attacker had ${h.mark.toLowerCase()} and walked with ${h.walkStyle.toLowerCase().replace(/,.*/, '')}.`,
+      `Multiple witnesses confirm: the killer had ${h.mark.toLowerCase()}, was ${h.habit.toLowerCase()}, and their voice was ${h.voice.toLowerCase()}.`,
+    ];
+    return { strength: 'perfect', text: details[Math.floor(Math.random() * details.length)], isFalse: false };
+  }
+
   // Determine if this evidence is secretly FALSE
-  // Worse QTE = higher false evidence chance: perfect=10%, good=20%, med=35%, bad=55%
   const falseChance = score >= 1.0 ? 0.10 : score >= 0.7 ? 0.20 : score >= 0.4 ? 0.35 : 0.55;
   const isFalse = Math.random() < falseChance && allCharacters;
 
-  // Strong evidence (high score but not perfect)
+  // PERFECT QTE (≥0.95): tiny trace evidence — ambiguous, hard to use
+  if (score >= 0.95) {
+    const trace = [
+      'A faint, unidentifiable scent lingered near the victim.',
+      'A single thread was found — too small to identify.',
+      'The victim\'s expression suggests they recognized their attacker.',
+      'A barely-visible smudge was found on the door handle.',
+      'The floorboards creaked in a pattern suggesting a single attacker.',
+    ];
+    return { strength: 'trace', text: trace[Math.floor(Math.random() * trace.length)], isFalse: false };
+  }
+
+  // GREAT QTE (≥0.7): small witness clue, possibly false
   if (score >= 0.7) {
     let clue;
     if (isFalse && allCharacters) clue = getFalsePublicTraitClue(allCharacters, killerId);
     else clue = getPublicTraitClue(killerCharacter);
-    return { strength: 'medium', text: `Witnesses reported seeing ${clue} near the scene.`, isFalse: !!isFalse };
+    return { strength: 'small', text: `Witnesses reported seeing ${clue} near the scene.`, isFalse: !!isFalse };
   }
 
-  // Medium evidence
+  // MEDIUM QTE (≥0.4): physical evidence left behind
   if (score >= 0.4) {
     if (isFalse && allCharacters) {
       const fc = getFalsePublicTraitClue(allCharacters, killerId);
       return { strength: 'medium', text: `A witness claims they saw ${fc} fleeing the area.`, isFalse: true };
     }
-    const vague = [
-      'The killer left scratches on the door frame during a struggle.',
-      'Droplets of something dark found trailing from the scene.',
+    const phys = [
       'A torn piece of fabric was found clutched by the victim.',
+      'Droplets of something dark found trailing from the scene.',
+      'The killer left scratches on the door frame during a struggle.',
       'Faint footprints suggest someone fled hastily.',
       'The window was left ajar — the killer may have entered from outside.',
     ];
-    return { strength: 'medium', text: vague[Math.floor(Math.random() * vague.length)], isFalse: false };
+    return { strength: 'medium', text: phys[Math.floor(Math.random() * phys.length)], isFalse: false };
   }
 
-  // Bad QTE = strong chance of false evidence
+  // BAD QTE (<0.4): strong, revealing evidence
   if (isFalse && allCharacters) {
     const fc = getFalsePublicTraitClue(allCharacters, killerId);
-    return { strength: 'weak', text: `Unconfirmed reports suggest ${fc} was near the crime scene.`, isFalse: true };
+    return { strength: 'large', text: `Unconfirmed reports suggest ${fc} was near the crime scene.`, isFalse: true };
   }
   const hidden = getHiddenTraitClue(killerCharacter);
-  return { strength: 'strong', text: `Crime scene evidence: ${hidden}.`, isFalse: false };
+  return { strength: 'large', text: `Crime scene evidence: ${hidden}.`, isFalse: false };
 }
 
 // ── INVESTIGATION CLUE GENERATION ────────────────────────────
