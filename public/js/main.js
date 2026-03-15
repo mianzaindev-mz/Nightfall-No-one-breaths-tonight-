@@ -126,11 +126,16 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
   game.backToLobby();
 });
 
+// ── Bot Controls ─────────────────────────────────────────────
+document.getElementById('addBotBtn').addEventListener('click', () => game.addBot());
+document.getElementById('rmBotBtn').addEventListener('click', () => game.removeBot());
+
 // ── Settings Modal ───────────────────────────────────────────
 document.getElementById('btnSettings').addEventListener('click', () => {
   // Populate current settings
   document.getElementById('setDayTime').value = game.settings.dayTime;
   document.getElementById('setNightTime').value = game.settings.nightTime;
+  document.getElementById('setInvestTime').value = game.settings.investTime || 40;
   document.getElementById('setDoctor').checked = game.settings.doctor;
   document.getElementById('setJester').checked = game.settings.jester;
   document.getElementById('setHideVotes').checked = game.settings.hideVotes;
@@ -145,6 +150,7 @@ document.getElementById('settingsSave').addEventListener('click', () => {
   game.updateSettings({
     dayTime: parseInt(document.getElementById('setDayTime').value),
     nightTime: parseInt(document.getElementById('setNightTime').value),
+    investTime: parseInt(document.getElementById('setInvestTime').value),
     doctor: document.getElementById('setDoctor').checked,
     jester: document.getElementById('setJester').checked,
     hideVotes: document.getElementById('setHideVotes').checked,
@@ -152,6 +158,7 @@ document.getElementById('settingsSave').addEventListener('click', () => {
   document.getElementById('settingsModal').classList.remove('open');
   ui.toast('Settings saved');
 });
+
 
 // ── Rules Modal ──────────────────────────────────────────────
 document.getElementById('btnRules').addEventListener('click', () => {

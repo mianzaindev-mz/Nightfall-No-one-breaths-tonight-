@@ -86,6 +86,10 @@
       <!-- Host Controls -->
       <div id="hCtrl" style="display:none">
         <div class="muted tc mb8" style="font-size:.8rem">Minimum 4 players to start</div>
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px">
+          <button class="btn btn-sm btn-out" id="addBotBtn" title="Add Bot">🤖 Add Bot</button>
+          <button class="btn btn-sm btn-out" id="rmBotBtn" title="Remove Bot">❌ Remove Bot</button>
+        </div>
         <button class="btn btn-red" id="startBtn" disabled aria-label="Start game">Begin the Night</button>
       </div>
       <!-- Guest Controls -->
@@ -152,8 +156,9 @@
     <div class="card" style="max-width:500px">
       <div id="vContent"></div>
       <hr>
+      <div id="verdictRecap" style="display:none"></div>
       <div id="vBars"></div>
-      <div class="muted tc mt16" style="font-size:.8rem">Next phase in <span id="vcT">6</span>s...</div>
+      <div class="muted tc mt16" style="font-size:.8rem">Next phase in <span id="vcT">8</span>s...</div>
     </div>
   </div>
 
@@ -192,12 +197,24 @@
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Night Phase</div>
-            <div class="toggle-desc">Time for night actions</div>
+            <div class="toggle-desc">Time for the killer to strike</div>
           </div>
           <select id="setNightTime" style="width:80px;text-align:center;margin:0;min-height:36px;font-size:.85rem">
             <option value="20">20s</option>
+            <option value="30" selected>30s</option>
+            <option value="45">45s</option>
+            <option value="60">60s</option>
+          </select>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">🔦 Investigation Time</div>
+            <div class="toggle-desc">Time to investigate after lights come on</div>
+          </div>
+          <select id="setInvestTime" style="width:80px;text-align:center;margin:0;min-height:36px;font-size:.85rem">
             <option value="30">30s</option>
-            <option value="45" selected>45s</option>
+            <option value="40" selected>40s</option>
+            <option value="50">50s</option>
             <option value="60">60s</option>
           </select>
         </div>
@@ -313,10 +330,16 @@
 
       <div class="rules-section">
         <h4>Game Flow</h4>
-        <p>🌙 <strong>Night:</strong> Killers attack (QTE). Everyone investigates suspects (QTE). Doctor protects.</p>
-        <p>☀ <strong>Day:</strong> Death announced + crime scene evidence shown. Players discuss clues and vote.</p>
-        <p>⚖ <strong>Verdict:</strong> Most-voted player is executed. Their role is revealed.</p>
+        <p>🌙 <strong>1. LIGHTS OUT:</strong> The manor goes dark. Killer selects a victim → QTE attack. Doctor protects (if enabled).</p>
+        <p>🔦 <strong>2. LIGHTS ON:</strong> Murder discovered + crime scene evidence. All players investigate a suspect via QTE. <strong>No talking!</strong></p>
+        <p>🍽 <strong>3. DINNER:</strong> Everyone gathers at the table. Discuss clues, share findings, and <strong>vote</strong> to execute a suspect.</p>
+        <p>⚖ <strong>4. VERDICT:</strong> Most-voted player is executed. Their role is revealed: Killer ☠, Innocent 😇, or Jester 🤡.</p>
         <p>🔄 <strong>Repeat</strong> until one side wins.</p>
+      </div>
+
+      <div class="rules-section">
+        <h4>⚠ False Evidence</h4>
+        <p>Low QTE accuracy doesn't just mean weak clues — it can produce <strong>FALSE evidence</strong> pointing to <strong>innocent players</strong>. The accuracy warning (🟢🟡🔴) tells you how reliable a clue is. Don't blindly trust red-flagged evidence!</p>
       </div>
 
       <button class="btn btn-red mt8" id="rulesOk">Got It</button>

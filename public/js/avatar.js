@@ -1,174 +1,195 @@
 // ═══════════════════════════════════════════════════════════════
 // NIGHTFALL — Avatar / Character Generator
-// Procedural character descriptions with public + hidden traits
+// 48 personas, 12 trait categories, false evidence system
 // ═══════════════════════════════════════════════════════════════
 
-// ── PERSONA NAMES (30+, shuffled per game, no duplicates) ────
+// ── 48 PERSONA NAMES ─────────────────────────────────────────
 const PERSONA_NAMES = [
-  { name: 'The Rose',        icon: '🌹' },
-  { name: 'The Raven',       icon: '🐦‍⬛' },
-  { name: 'The Clockmaker',  icon: '⏱' },
-  { name: 'The Alchemist',   icon: '⚗' },
-  { name: 'The Lantern',     icon: '🏮' },
-  { name: 'The Phantom',     icon: '👻' },
-  { name: 'The Serpent',     icon: '🐍' },
-  { name: 'The Moth',        icon: '🦋' },
-  { name: 'The Bell',        icon: '🔔' },
-  { name: 'The Thorn',       icon: '🌿' },
-  { name: 'The Mirror',      icon: '🪞' },
-  { name: 'The Ink',         icon: '🖋' },
-  { name: 'The Ember',       icon: '🔥' },
-  { name: 'The Mask',        icon: '🎭' },
-  { name: 'The Key',         icon: '🗝' },
-  { name: 'The Owl',         icon: '🦉' },
-  { name: 'The Pearl',       icon: '🦪' },
-  { name: 'The Crow',        icon: '🪶' },
-  { name: 'The Frost',       icon: '❄' },
-  { name: 'The Shadow',      icon: '🌑' },
-  { name: 'The Willow',      icon: '🌳' },
-  { name: 'The Spider',      icon: '🕷' },
-  { name: 'The Compass',     icon: '🧭' },
-  { name: 'The Storm',       icon: '⛈' },
-  { name: 'The Viper',       icon: '🐉' },
-  { name: 'The Chalice',     icon: '🏆' },
-  { name: 'The Dagger',      icon: '🗡' },
-  { name: 'The Candle',      icon: '🕯' },
-  { name: 'The Scarecrow',   icon: '🧟' },
-  { name: 'The Whisper',     icon: '💨' },
-  { name: 'The Bone',        icon: '🦴' },
-  { name: 'The Eclipse',     icon: '🌘' },
+  { name: 'The Rose',        icon: '🌹' }, { name: 'The Raven',       icon: '🐦‍⬛' },
+  { name: 'The Clockmaker',  icon: '⏱' },  { name: 'The Alchemist',   icon: '⚗' },
+  { name: 'The Lantern',     icon: '🏮' }, { name: 'The Phantom',     icon: '👻' },
+  { name: 'The Serpent',     icon: '🐍' }, { name: 'The Moth',        icon: '🦋' },
+  { name: 'The Bell',        icon: '🔔' }, { name: 'The Thorn',       icon: '🌿' },
+  { name: 'The Mirror',      icon: '🪞' }, { name: 'The Ink',         icon: '🖋' },
+  { name: 'The Ember',       icon: '🔥' }, { name: 'The Mask',        icon: '🎭' },
+  { name: 'The Key',         icon: '🗝' },  { name: 'The Owl',         icon: '🦉' },
+  { name: 'The Pearl',       icon: '🦪' }, { name: 'The Crow',        icon: '🪶' },
+  { name: 'The Frost',       icon: '❄' },  { name: 'The Shadow',      icon: '🌑' },
+  { name: 'The Willow',      icon: '🌳' }, { name: 'The Spider',      icon: '🕷' },
+  { name: 'The Compass',     icon: '🧭' }, { name: 'The Storm',       icon: '⛈' },
+  { name: 'The Viper',       icon: '🐉' }, { name: 'The Chalice',     icon: '🏆' },
+  { name: 'The Dagger',      icon: '🗡' },  { name: 'The Candle',      icon: '🕯' },
+  { name: 'The Scarecrow',   icon: '🧟' }, { name: 'The Whisper',     icon: '💨' },
+  { name: 'The Bone',        icon: '🦴' }, { name: 'The Eclipse',     icon: '🌘' },
+  { name: 'The Anchor',      icon: '⚓' }, { name: 'The Orchid',      icon: '🌺' },
+  { name: 'The Coin',        icon: '🪙' }, { name: 'The Hound',       icon: '🐕' },
+  { name: 'The Gargoyle',    icon: '🗿' }, { name: 'The Vine',        icon: '🍇' },
+  { name: 'The Hourglass',   icon: '⏳' }, { name: 'The Wolf',        icon: '🐺' },
+  { name: 'The Jewel',       icon: '💎' }, { name: 'The Crypt',       icon: '⚰' },
+  { name: 'The Quill',       icon: '✒' },  { name: 'The Iris',        icon: '👁' },
+  { name: 'The Thistle',     icon: '🌾' }, { name: 'The Rook',        icon: '♜' },
+  { name: 'The Coral',       icon: '🪸' }, { name: 'The Sundial',     icon: '☀' },
+  { name: 'The Ash',         icon: '🌫' }, { name: 'The Siren',       icon: '🧜' },
 ];
 
-// ── PUBLIC TRAIT POOLS (everyone can see) ─────────────────────
+// ── PUBLIC TRAIT POOLS ───────────────────────────────────────
 const HAIR_STYLE = [
-  'Curly and wild', 'Sleek and straight', 'Tightly braided', 'Slicked back',
-  'Shaved close', 'Long and wavy', 'Messy bun', 'Dreadlocks',
-  'Cropped short', 'Neatly parted', 'Windswept', 'Loose ponytail',
-  'Tangled and unkempt', 'Pinned with clips', 'Hidden under a hood',
-  'Flowing past shoulders', 'Twisted updo', 'Buzzed on one side',
-  'Thick and coiled', 'Pixie-cut', 'Feathered layers',
+  'Curly and wild', 'Sleek and straight', 'Tightly braided', 'Slicked back with pomade',
+  'Shaved close to the scalp', 'Long and wavy', 'Messy bun', 'Thick dreadlocks',
+  'Cropped military-short', 'Neatly parted to one side', 'Windswept and tangled',
+  'Loose ponytail with loose strands', 'Tangled and unkempt', 'Pinned up with silver clips',
+  'Hidden under a dark hood', 'Flowing well past shoulders', 'Twisted ornate updo',
+  'Buzzed on one side, long on other', 'Thick tightly coiled curls', 'Choppy pixie-cut',
+  'Feathered layered style', 'Two long braids', 'Cornrows with gold beads',
+  'Afro natural and voluminous', 'Wet-look slicked forward', 'Half-up half-down with ribbon',
+  'Finger waves pressed tight', 'Shaggy surfer-style', 'Crown braid around the head',
 ];
 
 const HAIR_COLOR = [
   'Jet black', 'Silver-grey', 'Auburn', 'Platinum blonde', 'Dark brown',
   'Copper red', 'Ash blonde', 'Midnight blue-black', 'Strawberry blonde',
-  'Deep chestnut', 'Snow white', 'Honey gold', 'Raven black',
-  'Dusty pink', 'Salt-and-pepper', 'Russet', 'Ink-dark',
-  'Fiery orange', 'Mousy brown', 'Charcoal-streaked',
+  'Deep chestnut', 'Snow white', 'Honey gold', 'Raven black with grey streaks',
+  'Dusty rose pink', 'Salt-and-pepper', 'Russet brown', 'Ink-dark purple-black',
+  'Fiery orange-red', 'Mousy light brown', 'Charcoal with silver streaks',
+  'Burgundy wine', 'Sun-bleached sandy', 'Mahogany', 'Ginger with freckle-match',
+  'Obsidian black, almost blue', 'Tawny caramel',
 ];
 
 const OUTFIT = [
-  'Long dark overcoat', 'Red silk dress', 'Torn leather jacket', 'White linen suit',
-  'Hooded velvet cloak', 'Grey wool sweater', 'Black turtleneck', 'Embroidered waistcoat',
-  'Flowing kimono-style robe', 'Patched denim jacket', 'Tailored blazer',
-  'Stained apron over shirt', 'Fur-trimmed cape', 'Striped sailor shirt',
-  'Military-style peacoat', 'Silk pajamas', 'Oversized trench coat',
-  'Corset and blouse', 'Old tweed suit', 'Leather duster',
-  'Layered shawls', 'Pinstripe vest',
+  'Long dark overcoat with brass buttons', 'Red silk evening dress', 'Torn leather biker jacket',
+  'White linen three-piece suit', 'Hooded velvet cloak, moth-eaten', 'Grey cable-knit wool sweater',
+  'Black turtleneck, skintight', 'Embroidered waistcoat with gold thread', 'Flowing kimono-style robe',
+  'Patched denim jacket with pins', 'Sharply tailored navy blazer', 'Stained butcher\'s apron over shirt',
+  'Fur-trimmed cape, blood-red lining', 'Striped Breton sailor shirt', 'Military peacoat, epaulets torn',
+  'Silk pajamas, monogrammed', 'Oversized trench coat, collar popped', 'Corset and ruffled blouse',
+  'Old tweed hunting suit', 'Long leather duster, trail-worn', 'Layered shawls over a thin dress',
+  'Pinstripe three-button vest', 'Nurse\'s uniform, slightly yellowed', 'Priest\'s cassock, frayed hem',
+  'Tuxedo with a crooked bowtie', 'Faded floral housedress', 'Mechanic\'s jumpsuit, oil-stained',
+  'Sequined cocktail dress', 'Moth-bitten fur coat', 'Rain-soaked canvas poncho',
 ];
 
 const OUTFIT_COLOR = [
   'Midnight blue', 'Crimson', 'Charcoal grey', 'Forest green', 'Ivory',
-  'Deep purple', 'Burnt sienna', 'Slate black', 'Burgundy', 'Olive drab',
+  'Deep purple', 'Burnt sienna', 'Slate black', 'Burgundy wine', 'Olive drab',
   'Rose pink', 'Dusty lavender', 'Oxblood', 'Teal', 'Sand beige',
-  'Copper', 'Indigo', 'Moss green', 'Amber', 'Pearl white',
+  'Copper-brown', 'Ink indigo', 'Moss green', 'Amber gold', 'Pearl white',
+  'Charcoal and cream pinstripe', 'Faded navy', 'Rust orange', 'Bone white',
+  'Blood-red', 'Smoke grey',
 ];
 
 const SHOES = [
-  'Tall black boots', 'Red heels', 'Worn leather sandals', 'Polished oxford shoes',
-  'Barefoot', 'Silver-buckled ankle boots', 'Mud-caked work boots', 'Velvet slippers',
-  'Platform shoes', 'Laced-up riding boots', 'Pointed stilettos', 'Canvas sneakers',
-  'Wooden clogs', 'Fur-lined moccasins', 'Steel-toed boots', 'Embroidered flats',
-  'Knee-high suede boots', 'Woven espadrilles', 'Patent leather loafers',
-  'Gladiator sandals', 'Cracked old boots',
+  'Tall black riding boots', 'Red stiletto heels, scuffed', 'Worn leather sandals, rope-tied',
+  'Polished oxford shoes, mirror shine', 'Completely barefoot', 'Silver-buckled ankle boots',
+  'Mud-caked heavy work boots', 'Velvet embroidered slippers', 'Towering platform shoes',
+  'Laced-up cavalry riding boots', 'Pointed crocodile-skin stilettos', 'Canvas high-top sneakers',
+  'Wooden Dutch clogs', 'Fur-lined moccasins', 'Steel-toed industrial boots',
+  'Flat embroidered ballet shoes', 'Knee-high dark suede boots', 'Woven rope espadrilles',
+  'Patent leather penny loafers', 'Gladiator sandals with bronze clasps', 'Cracked old cowboy boots',
+  'Chunky combat boots with chains', 'Silk house slippers', 'Rain-soaked galoshes',
+  'Hiking boots with red laces', 'Nurse\'s white rubber-soled shoes',
 ];
 
 const ACCESSORY = [
-  'Gold pocket watch', 'Silver locket necklace', 'Feathered wide-brim hat', 'Round spectacles',
-  'Embroidered silk scarf', 'Leather gloves', 'Beaded bracelet', 'Ornate cane',
-  'Jeweled ring', 'Pearl earrings', 'Copper brooch', 'Worn satchel',
-  'Tattered parasol', 'Bone-handled fan', 'Chain necklace with pendant', 'Monocle',
-  'Fingerless gloves', 'Ruby-studded hairpin', 'Brass compass on chain',
-  'Ivory cameo pin', 'Velvet choker', 'Wrist bandages',
+  'Gold pocket watch on a chain', 'Silver locket with a portrait inside', 'Wide-brim feathered hat',
+  'Round tortoiseshell spectacles', 'Embroidered silk scarf, bloodstain on edge',
+  'Black leather gloves, tight-fitting', 'Beaded wooden bracelet', 'Ornate walking cane, silver tip',
+  'Heavy jeweled signet ring', 'Pearl drop earrings', 'Copper brooch shaped like a moth',
+  'Worn leather messenger satchel', 'Tattered lace parasol', 'Bone-handled folding fan',
+  'Thick gold chain with an emerald pendant', 'Brass monocle on a cord', 'Fingerless knit gloves',
+  'Ruby-studded hairpin', 'Brass compass on a leather cord', 'Ivory cameo pin at the throat',
+  'Black velvet choker with a stone', 'Wrist-wrapped bandages, fresh', 'Reading glasses on a beaded chain',
+  'Pocket square, monogrammed', 'Rosary beads around the wrist', 'Leather tool belt, mostly empty',
+  'Fox-fur stole around the neck', 'Tarnished military dog tags',
 ];
 
-// ── HIDDEN TRAIT POOLS (detective-only) ──────────────────────
+// ── HIDDEN TRAIT POOLS ───────────────────────────────────────
 const PERFUME = [
-  'Sandalwood', 'Lavender', 'Tobacco smoke', 'Fresh rain on soil',
-  'Burnt sugar', 'Cedarwood', 'Old leather', 'Jasmine',
-  'Wet iron', 'Cloves and cinnamon', 'Sea salt', 'Bitter almonds',
-  'Pine resin', 'Dried roses', 'Machine oil', 'Patchouli',
-  'Faint decay', 'Honey and beeswax', 'Gunpowder', 'Smoked vanilla',
+  'Sandalwood and musk', 'Wild lavender', 'Stale tobacco smoke', 'Fresh rain on hot soil',
+  'Burnt caramel sugar', 'Old cedarwood chest', 'Worn saddle leather', 'Night-blooming jasmine',
+  'Wet rusted iron', 'Cloves and crushed cinnamon', 'Salt air and seaweed', 'Bitter almonds',
+  'Pine resin and tree sap', 'Dried funeral roses', 'Industrial machine oil', 'Dark patchouli',
+  'Sweet rot and decay', 'Warm honey and beeswax', 'Black gunpowder', 'Smoked bourbon vanilla',
+  'Antiseptic hospital smell', 'Camphor and menthol', 'Fresh-cut hay', 'Overripe fruit',
+  'Wet dog and mud', 'Formaldehyde, faint',
 ];
 
 const MARK = [
-  'Scar across left cheek', 'Ink-stained fingertips', 'Calloused rough hands',
-  'Missing ring finger', 'Burn mark on wrist', 'Chipped front tooth',
-  'Faded tattoo on neck', 'Crooked nose (broken before)', 'Pale, almost translucent skin',
-  'Freckles across the nose', 'Deep-set dark circles', 'Bitten-down nails',
-  'Split lip, recently healed', 'Nicotine-stained fingers', 'Small mole above lip',
-  'Scratch marks on forearm', 'Disfigured ear', 'Dimpled chin',
-  'Unusually long fingers', 'Weathered, sun-damaged skin',
+  'Deep scar across left cheek', 'Permanently ink-stained fingertips', 'Calloused sandpaper-rough hands',
+  'Missing ring finger on left hand', 'Old burn mark circling the wrist', 'Chipped front tooth, visible when smiling',
+  'Faded neck tattoo, words illegible', 'Crooked nose, clearly broken before', 'Ghostly pale, almost translucent skin',
+  'Dense freckles across nose and cheeks', 'Hollow deep-set dark circles', 'Bitten-down bloody nails',
+  'Split lip, recently scabbed over', 'Nicotine-yellow stained fingers', 'Small beauty mole above the lip',
+  'Parallel scratch marks on forearm', 'Cauliflower ear, badly disfigured', 'Pronounced dimpled chin',
+  'Unusually long spider-like fingers', 'Deeply weathered sun-damaged skin', 'Vitiligo patches on hands',
+  'Fresh bruise on the jawline', 'Needle-track scars on inner arm', 'Glass eye, slightly off-color',
+  'Birthmark shaped like a crescent on neck', 'Webbed toes',
 ];
 
 const WALK_STYLE = [
-  'Light-footed, almost silent', 'Heavy deliberate stomps', 'Slight limp on right side',
-  'Glides like a shadow', 'Brisk nervous shuffle', 'Confident long strides',
-  'Slow, measured pace', 'Hurried and hunched', 'Graceful and poised',
-  'Uneven gait', 'Swaying side to side', 'Tiptoes frequently',
-  'Drags one foot slightly', 'Military-precise march', 'Lazy slouching walk',
-  'Quick darting movements', 'Bouncy energetic step', 'Cautious heel-to-toe',
+  'Light-footed, almost silent', 'Heavy deliberate stomps that echo', 'Pronounced limp on right side',
+  'Glides like a shadow, no sound', 'Brisk nervous shuffle, head down', 'Confident wide powerful strides',
+  'Painfully slow, measured pace', 'Hurried hunched-over scurry', 'Graceful, poised, dancer-like',
+  'Uneven lurching gait', 'Swaying gently side to side', 'Tiptoes constantly, never flat-footed',
+  'Drags left foot with a scrape', 'Military-precise rigid march', 'Lazy slouching amble',
+  'Quick darting movements, like a rodent', 'Bouncy energetic childlike step', 'Cautious heel-to-toe creep',
+  'Wide bowlegged waddle', 'Pigeon-toed inward step',
 ];
 
 const VOICE = [
-  'Deep gravelly tone', 'Whispered rasp', 'Sharp and clipped', 'Warm honey voice',
-  'High-pitched and breathy', 'Monotone and flat', 'Commanding baritone',
-  'Soft-spoken mumble', 'Accented and musical', 'Croaky and dry',
-  'Booming and loud', 'Silky smooth', 'Stuttering and hesitant',
-  'Nasal and whiny', 'Melodic singsongy', 'Cold and precise',
-  'Hoarse from screaming', 'Barely above a whisper',
+  'Deep gravelly bass', 'Hoarse whispered rasp', 'Sharp clipped accent', 'Warm honeyed alto',
+  'High-pitched and breathy', 'Flat affect monotone', 'Commanding booming baritone',
+  'Soft-spoken barely audible mumble', 'Foreign-accented and melodic', 'Dry croaking rasp',
+  'Thunderously loud by default', 'Silky smooth radio voice', 'Nervous stuttering hesitation',
+  'Nasal whiny complaint', 'Lilting singsongy cadence', 'Cold surgically precise diction',
+  'Hoarse from constant screaming', 'Whisper so quiet you lean in', 'Lisping with every sibilant',
+  'Thick rural drawl',
 ];
 
 const HABIT = [
-  'Fidgets with a ring', 'Cracks knuckles', 'Taps fingers on surfaces',
-  'Hums under breath', 'Bites lower lip', 'Adjusts collar constantly',
-  'Picks at nails', 'Twirls hair', 'Clenches jaw when nervous',
-  'Rubs hands together', 'Avoids eye contact', 'Stares unblinkingly',
-  'Touches scar absently', 'Paces in circles', 'Crosses arms defensively',
-  'Drums fingers rhythmically', 'Sniffs the air', 'Whistles tunelessly',
-  'Counts things silently', 'Folds and unfolds hands',
+  'Fidgets with a ring, spinning it', 'Cracks knuckles loudly', 'Taps fingers in rhythmic patterns',
+  'Hums an eerie lullaby under breath', 'Bites lower lip until it bleeds', 'Adjusts collar every few seconds',
+  'Picks at torn cuticles', 'Twirls a strand of hair obsessively', 'Clenches jaw when nervous, visibly',
+  'Rubs palms together as if washing', 'Avoids all eye contact, looks at floor', 'Stares without blinking, unsettling',
+  'Touches old scar absently, ritually', 'Paces in tight circles when stressed', 'Crosses arms defensively, chin tucked',
+  'Drums fingers on every surface', 'Smells the air before entering a room', 'Whistles the same five notes tunelessly',
+  'Counts things under breath — doors, steps, tiles', 'Folds and unfolds hands, wringing',
+  'Chews on a toothpick', 'Snaps fingers when thinking', 'Mutters to themselves constantly',
+  'Blinks rapidly when lying',
 ];
 
 const SECRET_ITEM = [
-  'Bloodied handkerchief', 'Vial of unknown liquid', 'Torn love letter',
-  'Rusted skeleton key', 'Lock of someone\'s hair', 'Cracked compass',
-  'Faded photograph', 'Sharpened bone fragment', 'Coil of thin wire',
-  'Stained playing card', 'Stolen jewel', 'Coded note on parchment',
-  'Small knife wrapped in cloth', 'Bottle of sleeping powder', 'Broken pocket mirror',
-  'Bundle of dried herbs', 'Wax-sealed envelope', 'Handful of teeth',
-  'Glass eye', 'Single black glove',
+  'Bloodied handkerchief, stuffed in pocket', 'Vial of unidentified amber liquid', 'Torn love letter, half-burned',
+  'Rusted skeleton key to an unknown lock', 'Lock of someone else\'s hair, tied with ribbon',
+  'Cracked compass that points south', 'Faded photograph of a stranger', 'Sharpened animal bone fragment',
+  'Coil of thin piano wire', 'Stained playing card — Ace of Spades', 'Stolen ruby, uncut',
+  'Coded note on parchment, unsolved', 'Small folding knife, recently cleaned',
+  'Bottle of crushed sleeping powder', 'Broken pocket mirror, cracked in half',
+  'Bundle of dried nightshade herbs', 'Wax-sealed envelope, never opened', 'Small jar of teeth, origin unknown',
+  'Glass prosthetic eye', 'Single black leather glove, left hand', 'Death certificate, name scratched out',
+  'Syringe, empty but stained', 'Locket containing a tiny key', 'Map of the house with an X marked',
+  'Ticket stub to a funeral',
 ];
 
 // ── ALL POOLS ────────────────────────────────────────────────
 const PUBLIC_POOLS = {
-  hairStyle:    { label: '💇 Hair',      pool: HAIR_STYLE },
-  hairColor:    { label: '🎨 Hair Color', pool: HAIR_COLOR },
-  outfit:       { label: '👔 Outfit',     pool: OUTFIT },
-  outfitColor:  { label: '🎨 Color',      pool: OUTFIT_COLOR },
-  shoes:        { label: '👟 Shoes',      pool: SHOES },
-  accessory:    { label: '💍 Accessory',  pool: ACCESSORY },
+  hairStyle:    { label: '💇 Hair Style',  pool: HAIR_STYLE },
+  hairColor:    { label: '🎨 Hair Color',  pool: HAIR_COLOR },
+  outfit:       { label: '👔 Outfit',      pool: OUTFIT },
+  outfitColor:  { label: '🎨 Outfit Color',pool: OUTFIT_COLOR },
+  shoes:        { label: '👟 Shoes',       pool: SHOES },
+  accessory:    { label: '💍 Accessory',   pool: ACCESSORY },
 };
 
 const HIDDEN_POOLS = {
-  perfume:      { label: '🌸 Scent',     pool: PERFUME },
-  mark:         { label: '🔖 Mark',      pool: MARK },
-  walkStyle:    { label: '🚶 Walk',      pool: WALK_STYLE },
-  voice:        { label: '🗣 Voice',     pool: VOICE },
-  habit:        { label: '🤏 Habit',     pool: HABIT },
-  secretItem:   { label: '🔒 Secret',    pool: SECRET_ITEM },
+  perfume:      { label: '🌸 Scent',      pool: PERFUME },
+  mark:         { label: '🔖 Mark',       pool: MARK },
+  walkStyle:    { label: '🚶 Walk',       pool: WALK_STYLE },
+  voice:        { label: '🗣 Voice',      pool: VOICE },
+  habit:        { label: '🤏 Habit',      pool: HABIT },
+  secretItem:   { label: '🔒 Secret Item',pool: SECRET_ITEM },
 };
 
-// ── Utility: pick random unique from pool ────────────────────
+// ── Utility: pick random unique ──────────────────────────────
 function pickUnique(pool, usedSet) {
   const avail = pool.filter(v => !usedSet.has(v));
   if (!avail.length) return pool[Math.floor(Math.random() * pool.length)];
@@ -177,105 +198,85 @@ function pickUnique(pool, usedSet) {
   return picked;
 }
 
-// ── Generate a single character ──────────────────────────────
 function generateCharacter(usedTraits) {
   const pub = {};
-  for (const [key, { pool }] of Object.entries(PUBLIC_POOLS)) {
-    pub[key] = pickUnique(pool, usedTraits);
-  }
+  for (const [key, { pool }] of Object.entries(PUBLIC_POOLS)) pub[key] = pickUnique(pool, usedTraits);
   const hidden = {};
-  for (const [key, { pool }] of Object.entries(HIDDEN_POOLS)) {
-    hidden[key] = pickUnique(pool, usedTraits);
-  }
+  for (const [key, { pool }] of Object.entries(HIDDEN_POOLS)) hidden[key] = pickUnique(pool, usedTraits);
   return { pub, hidden };
 }
 
-// ── Assign characters to all players ─────────────────────────
-/**
- * @param {string[]} playerIds
- * @returns {{ personas: Map<string, {name, icon}>, characters: Map<string, {pub, hidden}> }}
- */
 export function assignCharacters(playerIds) {
-  // Shuffle persona names
   const shuffled = [...PERSONA_NAMES].sort(() => Math.random() - 0.5);
   const personas = new Map();
   const characters = new Map();
   const usedTraits = new Set();
-
   playerIds.forEach((id, i) => {
     personas.set(id, shuffled[i % shuffled.length]);
     characters.set(id, generateCharacter(usedTraits));
   });
-
   return { personas, characters };
 }
 
-// ── Get formatted public description ─────────────────────────
+// ── Description Formatters ───────────────────────────────────
 export function getPublicDesc(character) {
   const p = character.pub;
-  return [
-    { label: PUBLIC_POOLS.hairStyle.label,   value: p.hairStyle },
-    { label: PUBLIC_POOLS.hairColor.label,    value: p.hairColor },
-    { label: PUBLIC_POOLS.outfit.label,       value: p.outfit },
-    { label: PUBLIC_POOLS.outfitColor.label,  value: p.outfitColor },
-    { label: PUBLIC_POOLS.shoes.label,        value: p.shoes },
-    { label: PUBLIC_POOLS.accessory.label,    value: p.accessory },
-  ];
+  return Object.entries(PUBLIC_POOLS).map(([key, { label }]) => ({ label, value: p[key] }));
 }
 
-// ── Get formatted hidden description ─────────────────────────
 export function getHiddenDesc(character) {
   const h = character.hidden;
-  return [
-    { label: HIDDEN_POOLS.perfume.label,    value: h.perfume },
-    { label: HIDDEN_POOLS.mark.label,       value: h.mark },
-    { label: HIDDEN_POOLS.walkStyle.label,  value: h.walkStyle },
-    { label: HIDDEN_POOLS.voice.label,      value: h.voice },
-    { label: HIDDEN_POOLS.habit.label,      value: h.habit },
-    { label: HIDDEN_POOLS.secretItem.label, value: h.secretItem },
-  ];
+  return Object.entries(HIDDEN_POOLS).map(([key, { label }]) => ({ label, value: h[key] }));
 }
 
-// ── Get a random public trait for clues ───────────────────────
+// ── Trait Clue Generators ────────────────────────────────────
 export function getPublicTraitClue(character) {
   const p = character.pub;
-  const traits = [
+  const options = [
     `someone wearing ${p.outfit.toLowerCase()}`,
     `someone with ${p.hairStyle.toLowerCase()} ${p.hairColor.toLowerCase()} hair`,
     `someone in ${p.shoes.toLowerCase()}`,
-    `someone wearing a ${p.accessory.toLowerCase()}`,
+    `someone carrying ${p.accessory.toLowerCase()}`,
     `someone dressed in ${p.outfitColor.toLowerCase()}`,
   ];
-  return traits[Math.floor(Math.random() * traits.length)];
+  return options[Math.floor(Math.random() * options.length)];
 }
 
-// ── Get a random hidden trait for strong clues ────────────────
 export function getHiddenTraitClue(character) {
   const h = character.hidden;
-  const traits = [
-    `the scent of ${h.perfume.toLowerCase()} lingered at the scene`,
-    `footprints suggest ${h.walkStyle.toLowerCase().replace(/,.*/, '')}`,
-    `a witness heard a ${h.voice.toLowerCase()} nearby`,
+  const options = [
+    `the lingering scent of ${h.perfume.toLowerCase()} at the scene`,
+    `footprints suggesting ${h.walkStyle.toLowerCase().replace(/,.*/, '')}`,
+    `a witness heard ${h.voice.toLowerCase()} nearby`,
     `the attacker was ${h.habit.toLowerCase()}`,
     `found near the body: ${h.secretItem.toLowerCase()}`,
     `the attacker had ${h.mark.toLowerCase()}`,
   ];
-  return traits[Math.floor(Math.random() * traits.length)];
+  return options[Math.floor(Math.random() * options.length)];
 }
 
-// ── Serialize for network (only public + persona to non-detectives) ──
-export function serializeForPlayer(personas, characters, playerId, isDetective) {
-  // Everyone gets all public descriptions + persona names
+// ── FALSE EVIDENCE GENERATOR ─────────────────────────────────
+// When accuracy is very low, generate a clue pointing to a RANDOM
+// player instead of the actual suspect. This is misleading evidence.
+export function getFalsePublicTraitClue(allCharacters, excludeId) {
+  const ids = [...allCharacters.keys()].filter(id => id !== excludeId);
+  if (!ids.length) return getPublicTraitClue(allCharacters.values().next().value);
+  const randomId = ids[Math.floor(Math.random() * ids.length)];
+  return getPublicTraitClue(allCharacters.get(randomId));
+}
+
+export function getFalseHiddenTraitClue(allCharacters, excludeId) {
+  const ids = [...allCharacters.keys()].filter(id => id !== excludeId);
+  if (!ids.length) return getHiddenTraitClue(allCharacters.values().next().value);
+  const randomId = ids[Math.floor(Math.random() * ids.length)];
+  return getHiddenTraitClue(allCharacters.get(randomId));
+}
+
+export function serializeForPlayer(personas, characters, playerId) {
   const data = {};
   personas.forEach((persona, id) => {
-    data[id] = {
-      persona,
-      pub: characters.get(id).pub,
-    };
-    // Detectives get their OWN hidden traits
-    if (id === playerId) {
-      data[id].hidden = characters.get(id).hidden;
-    }
+    data[id] = { persona, pub: characters.get(id).pub };
+    if (id === playerId) data[id].hidden = characters.get(id).hidden;
   });
   return data;
 }
