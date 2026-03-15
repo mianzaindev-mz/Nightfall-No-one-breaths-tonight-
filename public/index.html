@@ -111,8 +111,7 @@
       <div class="dn" id="dAnnounce" style="display:none">💀 <span id="dName"></span> was found dead this morning...</div>
       <!-- Doctor save notice -->
       <div class="dn" id="dSaved" style="display:none;border-color:var(--success);background:rgba(76,175,80,.08);color:var(--success-light)">🩺 <span id="dSavedName"></span> was attacked but miraculously survived!</div>
-      <div class="cluebox" id="cBox" style="display:none">
-        <strong style="font-family:var(--font-mono);font-size:.75rem;font-style:normal">🔍 DETECTIVE'S REPORT</strong><br>
+      <div id="cBox" style="display:none">
         <span id="cText"></span>
       </div>
       <hr>
@@ -253,7 +252,19 @@
 
       <div class="rules-section">
         <h4>The Game</h4>
-        <p>NightFall is a social deduction game. Players are secretly assigned roles. Each night, killers strike. Each day, the town discusses and votes to eliminate a suspect. Find the killers before they outnumber you.</p>
+        <p>NightFall is a social deduction game. Players are secretly assigned roles and <strong>unique game identities</strong> ("The Rose", "The Raven", etc). Each night, killers strike and everyone investigates. Clues reference identities — deduce who the killer is!</p>
+      </div>
+
+      <div class="rules-section">
+        <h4>🎮 QTE Kill System</h4>
+        <p>Killers don't just click to kill — they must complete a <strong>Quick Time Event</strong> (press keys in sequence). A <strong>perfect QTE</strong> = clean kill, no clues. A <strong>failed QTE</strong> = evidence left behind pointing to the killer's game identity.</p>
+        <p style="color:var(--blood-bright);font-size:.85rem">⚠ The QTE gets <strong>harder</strong> with each kill — serial killers get sloppy!</p>
+      </div>
+
+      <div class="rules-section">
+        <h4>🔍 Investigation System</h4>
+        <p><strong>Every alive player</strong> can investigate a suspect at night via QTE. Better accuracy = stronger clues.</p>
+        <p><strong>Detectives</strong> get an <strong>easier QTE</strong> — they're trained investigators. Civilians can try too, but it's harder.</p>
       </div>
 
       <div class="rules-section">
@@ -262,21 +273,21 @@
           <div class="role-card-icon">🗡</div>
           <div class="role-card-info">
             <div class="role-card-name" style="color:var(--blood-bright)">Killer</div>
-            <div class="role-card-desc">Choose a victim each night. Blend in during the day. Win when killers equal or outnumber the living.</div>
+            <div class="role-card-desc">Choose a victim, then complete a QTE to attack. Sloppy kills leave evidence at the crime scene.</div>
           </div>
         </div>
         <div class="role-card">
           <div class="role-card-icon">🔍</div>
           <div class="role-card-info">
             <div class="role-card-name" style="color:var(--det-bright)">Detective</div>
-            <div class="role-card-desc">Investigate one player per night to learn if they are suspicious. Share findings with the town.</div>
+            <div class="role-card-desc">Investigate with an easier QTE. Your training gives you stronger, clearer results than civilians.</div>
           </div>
         </div>
         <div class="role-card">
           <div class="role-card-icon">🧑</div>
           <div class="role-card-info">
             <div class="role-card-name" style="color:var(--success-light)">Civilian</div>
-            <div class="role-card-desc">No special powers. Observe, discuss, and vote wisely — the town's fate is in your hands.</div>
+            <div class="role-card-desc">Can investigate at night (harder QTE). Observe, discuss, and vote wisely — every clue matters.</div>
           </div>
         </div>
       </div>
@@ -287,23 +298,23 @@
           <div class="role-card-icon">🩺</div>
           <div class="role-card-info">
             <div class="role-card-name" style="color:var(--success-light)">Doctor</div>
-            <div class="role-card-desc">Each night, protect one player. If the killer targets them, they survive. Cannot self-protect two nights in a row.</div>
+            <div class="role-card-desc">Protect one player per night, then investigate. Cannot self-protect two nights in a row.</div>
           </div>
         </div>
         <div class="role-card">
           <div class="role-card-icon">🤡</div>
           <div class="role-card-info">
             <div class="role-card-name" style="color:var(--warn)">Jester</div>
-            <div class="role-card-desc">An agent of chaos. The Jester wins the game if they are voted out during the day. The game continues for others.</div>
+            <div class="role-card-desc">Wins if voted out. An agent of chaos — the game continues for others.</div>
           </div>
         </div>
       </div>
 
       <div class="rules-section">
         <h4>Game Flow</h4>
-        <p>🌙 <strong>Night:</strong> Killers choose a victim. Detective investigates. Doctor protects.</p>
-        <p>☀ <strong>Day:</strong> The victim is announced. Players discuss and vote to execute a suspect.</p>
-        <p>⚖ <strong>Verdict:</strong> The player with the most votes is eliminated. Their role is revealed.</p>
+        <p>🌙 <strong>Night:</strong> Killers attack (QTE). Everyone investigates suspects (QTE). Doctor protects.</p>
+        <p>☀ <strong>Day:</strong> Death announced + crime scene evidence shown. Players discuss clues and vote.</p>
+        <p>⚖ <strong>Verdict:</strong> Most-voted player is executed. Their role is revealed.</p>
         <p>🔄 <strong>Repeat</strong> until one side wins.</p>
       </div>
 

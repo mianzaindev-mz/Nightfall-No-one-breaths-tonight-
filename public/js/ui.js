@@ -100,16 +100,27 @@ export function renderLobby(players, myId, isHost, onKick) {
 }
 
 // ── Role Reveal ──────────────────────────────────────────────
-export function renderRole(roleKey, allyList = []) {
+export function renderRole(roleKey, allyList = [], persona = null) {
   const info = getRoleInfo(roleKey);
   let extra = '';
   if (roleKey === 'killer' && allyList.length > 0) {
     extra = `<div style="color:var(--blood-bright);font-size:.85rem;margin-top:8px">Fellow killers: ${allyList.map(n => esc(n)).join(', ')}</div>`;
   }
+  let personaHtml = '';
+  if (persona) {
+    personaHtml = `<div class="persona-badge" style="margin:0 auto 14px;justify-content:center"><span class="persona-icon">${persona.icon}</span><span>Your identity this game: <span class="persona-name">${esc(persona.name)}</span></span></div>`;
+  }
+  const nightAction = roleKey === 'killer'
+    ? '<div class="muted tc mt8" style="font-size:.8rem">🗡 At night: select a victim, then complete a QTE to attack. Sloppy kills leave clues!</div>'
+    : roleKey === 'doctor'
+    ? '<div class="muted tc mt8" style="font-size:.8rem">🩺 At night: protect a player, then investigate a suspect via QTE.</div>'
+    : '<div class="muted tc mt8" style="font-size:.8rem">🔎 At night: investigate a suspect via QTE. Better accuracy = better clues!</div>';
+
   document.getElementById('rContent').innerHTML =
+    personaHtml +
     `<span class="role-icon">${info.icon}</span>` +
     `<div class="role-nm" style="color:${info.color}">${info.name}</div>` +
-    `<p class="role-desc">${info.desc}</p>${extra}`;
+    `<p class="role-desc">${info.desc}</p>${extra}${nightAction}`;
   document.getElementById('readyBtn').disabled = false;
   document.getElementById('readyBtn').textContent = 'I Am Ready';
 }

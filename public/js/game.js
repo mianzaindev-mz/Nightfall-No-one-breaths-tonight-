@@ -1,8 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 // NIGHTFALL — Game State Machine
+// Integrates: QTE kills, universal investigation, personas
 // ═══════════════════════════════════════════════════════════════
 
 import { assignRoles, getRoleInfo } from './roles.js';
+import { assignPersonas, generateKillClue, generateInvestClue, runQTE, getKillDifficulty, getInvestigateDifficulty } from './qte.js';
 import audio from './audio.js';
 import chat from './chat.js';
 import * as ui from './ui.js';
@@ -20,19 +22,28 @@ export default class Game {
 
     // Room
     this.lobbyCode = '';
-    this.players = []; // [{id, name, avatar, alive, role, disconnected}]
+    this.players = [];
 
     // State
-    this.phase = 'lobby'; // lobby | role | night | day | verdict | over
+    this.phase = 'lobby';
     this.round = 0;
     this.myRole = null;
     this.settings = { dayTime: 60, nightTime: 45, detTime: 30, doctor: false, jester: false, hideVotes: true };
 
+    // Personas — Map<playerId, {name, icon, trait, item}>
+    this.personas = new Map();
+    this.myPersona = null;
+
     // Night
-    this.nightActions = {}; // killerId -> targetId
+    this.nightActions = {};
     this.doctorTarget = null;
     this.clue = null;
+    this.killClues = [];        // clues from QTE failures
+    this.investigationClues = []; // clues from player investigations
     this.detDone = false;
+
+    // Kill tracking for QTE difficulty
+    this.killCounts = {};       // killerId -> number of kills
 
     // Day
     this.killedId = null;
@@ -47,7 +58,7 @@ export default class Game {
     this.dayInterval = null;
     this.nightTimeout = null;
     this.lastWordsTimeout = null;
-    this.lastDoctorSelf = false; // did doctor protect self last night?
+    this.lastDoctorSelf = false;
 
     // Stats
     this.stats = JSON.parse(localStorage.getItem('nf_stats') || '{"games":0,"wins":0}');
@@ -74,10 +85,7 @@ export default class Game {
       this._showLobby();
     });
 
-    n.on('JOIN_FAIL', d => {
-      ui.toast(d.reason || 'Failed to join', true);
-    });
-
+    n.on('JOIN_FAIL', d => { ui.toast(d.reason || 'Failed to join', true); });
     n.on('RECONNECTED', d => {
       this.lobbyCode = d.code;
       this.isHost = (d.hostId === this.myId);
@@ -88,12 +96,9 @@ export default class Game {
 
     n.on('PLAYER_LIST', d => {
       this.players = d.players.map(p => ({
-        id: p.id,
-        name: p.name,
-        avatar: p.avatar || '👤',
+        id: p.id, name: p.name, avatar: p.avatar || '👤',
         alive: p.alive !== undefined ? p.alive : true,
-        role: p.role || null,
-        disconnected: !p.connected,
+        role: p.role || null, disconnected: !p.connected,
         isHost: p.id === d.hostId
       }));
       this.isHost = d.hostId === this.myId;
@@ -134,22 +139,20 @@ export default class Game {
     });
 
     // ── Game Messages (relayed) ──
-    // Player list update from host
     n.on('PL', d => {
       d.pl.forEach(u => {
         let p = this.players.find(x => x.id === u.id);
-        if (p) { Object.assign(p, u); }
-        else { this.players.push({ ...u, disconnected: false }); }
+        if (p) Object.assign(p, u);
+        else this.players.push({ ...u, disconnected: false });
       });
       this._renderLobby();
     });
 
-    // Game start — role assignment (anti-cheat: each player gets only their role)
+    // Role assignment — each player gets ONLY their own role + persona map
     n.on('ROLE', d => {
       this.round = d.round || 1;
       this.phase = 'role';
       this.myRole = d.role;
-      // Update player list with public info
       d.publicPlayers.forEach(u => {
         let p = this.players.find(x => x.id === u.id);
         if (p) { p.alive = true; p.avatar = u.avatar || p.avatar; }
@@ -157,90 +160,65 @@ export default class Game {
       const me = this.players.find(p => p.id === this.myId);
       if (me) me.role = d.role;
       this.settings = d.settings || this.settings;
+
+      // Rebuild personas from data
+      this.personas = new Map();
+      if (d.personas) {
+        d.personas.forEach(({ id, persona }) => this.personas.set(id, persona));
+      }
+      this.myPersona = this.personas.get(this.myId);
+      this.killCounts = {};
+
       this._showRole(d.allies || []);
     });
 
-    // Night begins
-    n.on('NIGHT', d => {
-      this.phase = 'night';
-      this.round = d.round;
-      this._showNight(d.dur);
-    });
+    n.on('NIGHT', d => { this.phase = 'night'; this.round = d.round; this._showNight(d.dur); });
 
-    // Night resolved — day begins
-    n.on('DAY', d => {
-      this._onDay(d);
-    });
+    n.on('DAY', d => { this._onDay(d); });
 
-    // Vote update
-    n.on('VOTE_UPDATE', d => {
-      this.votes = d.votes || {};
-      this._renderVotes();
-    });
+    n.on('VOTE_UPDATE', d => { this.votes = d.votes || {}; this._renderVotes(); });
 
-    // Verdict
-    n.on('VERDICT', d => {
-      this._onVerdict(d);
-    });
+    n.on('VERDICT', d => { this._onVerdict(d); });
 
-    // Game over
-    n.on('GAMEOVER', d => {
-      this._onGameOver(d);
-    });
+    n.on('GAMEOVER', d => { this._onGameOver(d); });
 
-    // Player ready
     n.on('READY', d => {
-      if (this.isHost) {
-        this.readySet.add(d._from);
-        this._checkReady();
-      }
+      if (this.isHost) { this.readySet.add(d._from); this._checkReady(); }
     });
 
-    // Kill action from killer
+    // Kill action from killer (with QTE score)
     n.on('KILL_ACTION', d => {
       if (this.isHost) {
         this.nightActions[d._from] = d.targetId;
+        // Store QTE clue from killer's performance
+        if (d.killClue && d.killClue.text) {
+          this.killClues.push(d.killClue.text);
+        }
         this._checkNightDone();
       }
     });
 
-    // Detective clue
-    n.on('DET_CLUE', d => {
-      if (this.isHost) {
-        this.clue = d.clue;
-        this.detDone = true;
+    // Investigation result from any player
+    n.on('INVEST_RESULT', d => {
+      if (this.isHost && d.clue) {
+        this.investigationClues.push({ playerId: d._from, clue: d.clue });
       }
     });
 
-    // Doctor protect
     n.on('DOC_PROTECT', d => {
-      if (this.isHost) {
-        this.doctorTarget = d.targetId;
-      }
+      if (this.isHost) this.doctorTarget = d.targetId;
     });
 
-    // Vote from player
     n.on('VOTE', d => {
       if (this.isHost) {
         this.votes[d._from] = d.targetId;
-        // Broadcast updated votes (hidden or shown)
         this.net.relay({ t: 'VOTE_UPDATE', votes: this.votes });
         this._checkVoteDone();
       }
     });
 
-    // Chat message
-    n.on('CHAT', d => {
-      chat.addMessage(d.name, d.text, d.chatType || 'normal');
-      audio.play('chat');
-    });
-
-    // Last words
-    n.on('LAST_WORDS', d => {
-      chat.addMessage(d.name, d.text, 'last-words');
-    });
-
-    // Kick
+    n.on('CHAT', d => { chat.addMessage(d.name, d.text, d.chatType || 'normal'); audio.play('chat'); });
+    n.on('LAST_WORDS', d => { chat.addMessage(d.name, d.text, 'last-words'); });
     n.on('KICKED', d => {
       if (d.targetId === this.myId) {
         ui.toast('You were kicked from the lobby', true);
@@ -249,28 +227,23 @@ export default class Game {
         this.players = [];
       }
     });
-
-    // Settings update from host
-    n.on('SETTINGS', d => {
-      this.settings = d.settings;
-    });
+    n.on('SETTINGS', d => { this.settings = d.settings; });
   }
 
-  // ── Create Lobby ───────────────────────────────────────────
+  // ── Create / Join Lobby ────────────────────────────────────
   createLobby(name, avatar) {
     this.myName = name;
     this.myAvatar = avatar;
     this.net.createRoom(this.myId, name);
   }
 
-  // ── Join Lobby ─────────────────────────────────────────────
   joinLobby(name, avatar, code) {
     this.myName = name;
     this.myAvatar = avatar;
     this.net.joinRoom(this.myId, name, code);
   }
 
-  // ── Show Lobby ─────────────────────────────────────────────
+  // ── Lobby ──────────────────────────────────────────────────
   _showLobby() {
     ui.show('s-lobby');
     document.getElementById('lCode').textContent = this.lobbyCode;
@@ -282,7 +255,6 @@ export default class Game {
     ui.renderLobby(this.players, this.myId, this.isHost, (kickId) => this.kickPlayer(kickId));
   }
 
-  // ── Kick Player ────────────────────────────────────────────
   kickPlayer(playerId) {
     if (!this.isHost) return;
     this.net.relay({ t: 'KICKED', targetId: playerId });
@@ -299,12 +271,21 @@ export default class Game {
       if (p) { p.role = r.role; p.alive = true; }
     });
 
+    // Assign random personas for this game
+    const personaMap = assignPersonas(this.players.map(p => p.id));
+    this.personas = personaMap;
+    this.myPersona = personaMap.get(this.myId);
+
+    // Serialize personas for network
+    const personaData = [];
+    personaMap.forEach((persona, id) => personaData.push({ id, persona }));
+
     this.phase = 'role';
     this.round = 1;
     this.readySet = new Set();
     this.jesterWinner = null;
+    this.killCounts = {};
 
-    const killerIds = this.players.filter(p => p.role === 'killer').map(p => p.id);
     const publicPlayers = this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar }));
 
     // Send each player ONLY their own role (anti-cheat)
@@ -314,17 +295,13 @@ export default class Game {
         : [];
 
       if (p.id === this.myId) {
-        // Local host
         this.myRole = p.role;
         this._showRole(allies);
       } else {
         this.net.relay({
-          t: 'ROLE',
-          role: p.role,
-          allies,
-          publicPlayers,
-          round: this.round,
-          settings: this.settings
+          t: 'ROLE', role: p.role, allies, publicPlayers,
+          round: this.round, settings: this.settings,
+          personas: personaData
         }, p.id);
       }
     });
@@ -333,7 +310,7 @@ export default class Game {
   // ── Role Screen ────────────────────────────────────────────
   _showRole(allies) {
     ui.show('s-role');
-    ui.renderRole(this.myRole, allies);
+    ui.renderRole(this.myRole, allies, this.myPersona);
     audio.play(this.myRole === 'killer' ? 'bad' : 'good');
     ui.hideRoleReminder();
   }
@@ -341,18 +318,12 @@ export default class Game {
   pressReady() {
     document.getElementById('readyBtn').disabled = true;
     document.getElementById('readyBtn').textContent = 'Waiting...';
-    if (this.isHost) {
-      this.readySet.add(this.myId);
-      this._checkReady();
-    } else {
-      this.net.relay({ t: 'READY' });
-    }
+    if (this.isHost) { this.readySet.add(this.myId); this._checkReady(); }
+    else this.net.relay({ t: 'READY' });
   }
 
   _checkReady() {
-    if (this.readySet.size >= this.players.filter(p => !p.disconnected).length) {
-      this._beginNight();
-    }
+    if (this.readySet.size >= this.players.filter(p => !p.disconnected).length) this._beginNight();
   }
 
   // ── Night ──────────────────────────────────────────────────
@@ -361,6 +332,8 @@ export default class Game {
     this.phase = 'night';
     this.nightActions = {};
     this.doctorTarget = null;
+    this.killClues = [];
+    this.investigationClues = [];
     this.detDone = false;
     this.clue = null;
     this.readySet = new Set();
@@ -397,82 +370,207 @@ export default class Game {
     }
 
     if (this.myRole === 'killer') {
-      const kl = ui.renderNightKillerUI(alive);
-      if (kl) {
-        kl.onclick = (e) => {
-          const btn = e.target.closest('.bplayer');
-          if (!btn || btn.disabled) return;
-          kl.querySelectorAll('.bplayer').forEach(b => { b.disabled = true; b.style.opacity = b === btn ? '1' : '.25'; });
-          document.getElementById('kCfm').style.display = 'block';
-          const tid = btn.dataset.pid;
-          if (this.isHost) { this.nightActions[this.myId] = tid; this._checkNightDone(); }
-          else this.net.relay({ t: 'KILL_ACTION', targetId: tid });
-          audio.haptic([100]);
-        };
-      }
-    } else if (this.myRole === 'detective') {
-      const detTime = this.settings.detTime || 30;
-      const dl = ui.renderNightDetectiveUI(alive, detTime);
-      let tl = detTime;
-      const tk = setInterval(() => {
-        tl--;
-        ui.updateTimer('dtmr', tl);
-        if (tl <= 0) { clearInterval(tk); this._submitDetClue('No investigation was completed.'); }
-      }, 1000);
-
-      if (dl) {
-        dl.onclick = (e) => {
-          const btn = e.target.closest('.bdet');
-          if (!btn || btn.disabled) return;
-          clearInterval(tk);
-          dl.querySelectorAll('.bdet').forEach(b => b.disabled = true);
-          const tid = btn.dataset.pid;
-          const target = this.players.find(p => p.id === tid);
-          const isKiller = target?.role === 'killer';
-          const clue = isKiller
-            ? `Suspicious evidence links <strong>${ui.esc(target.name)}</strong> to recent events. They may be the killer.`
-            : `<strong>${ui.esc(target.name)}</strong> appears to have an alibi. Likely innocent.`;
-          this._submitDetClue(clue);
-          const r = document.getElementById('dRes');
-          if (r) { r.innerHTML = clue; r.style.display = 'block'; }
-        };
-      }
+      // ── KILLER: Select target, then QTE ──
+      this._showKillerNight(alive);
     } else if (this.myRole === 'doctor') {
-      const canProtectSelf = !this.lastDoctorSelf;
-      const targets = this.players.filter(p => p.alive).map(p => ({
-        ...p,
-        isSelf: p.id === this.myId
-      }));
-      const filtered = canProtectSelf ? targets : targets;
-      const dl = ui.renderNightDoctorUI(filtered, !canProtectSelf);
-      if (dl) {
-        dl.onclick = (e) => {
-          const btn = e.target.closest('.bdet');
-          if (!btn || btn.disabled) return;
-          dl.querySelectorAll('.bdet').forEach(b => { b.disabled = true; b.style.opacity = b === btn ? '1' : '.25'; });
-          document.getElementById('docCfm').style.display = 'block';
-          const tid = btn.dataset.pid;
-          this.lastDoctorSelf = (tid === this.myId);
-          if (this.isHost) { this.doctorTarget = tid; }
-          else this.net.relay({ t: 'DOC_PROTECT', targetId: tid });
-          audio.haptic([50]);
-        };
-      }
+      // ── DOCTOR: Protect someone, then investigate ──
+      this._showDoctorNight(alive);
     } else {
-      ui.renderNightCivilianUI();
+      // ── CIVILIAN / DETECTIVE: Investigate via QTE ──
+      this._showInvestigatorNight(alive);
     }
   }
 
-  _submitDetClue(clue) {
-    if (this.isHost) { this.clue = clue; this.detDone = true; }
-    else this.net.relay({ t: 'DET_CLUE', clue });
+  // ── Killer Night: Pick target → QTE kill ───────────────────
+  _showKillerNight(alive) {
+    const kl = ui.renderNightKillerUI(alive);
+    if (!kl) return;
+
+    kl.onclick = async (e) => {
+      const btn = e.target.closest('.bplayer');
+      if (!btn || btn.disabled) return;
+
+      // Lock selection
+      kl.querySelectorAll('.bplayer').forEach(b => { b.disabled = true; b.style.opacity = b === btn ? '1' : '.25'; });
+      const tid = btn.dataset.pid;
+      audio.haptic([100]);
+
+      // Count how many kills this killer has made
+      const myKills = this.killCounts[this.myId] || 0;
+      const diff = getKillDifficulty(myKills);
+
+      // Run QTE in the kCfm area
+      const qteContainer = document.getElementById('kCfm');
+      if (qteContainer) {
+        qteContainer.style.display = 'block';
+        qteContainer.innerHTML = '';
+        const score = await runQTE(qteContainer, diff, 'kill');
+
+        // Generate clue from QTE performance
+        const killerPersona = this.personas.get(this.myId);
+        const killClue = generateKillClue(killerPersona, score, myKills);
+
+        // Send kill action + QTE result to host
+        if (this.isHost) {
+          this.nightActions[this.myId] = tid;
+          if (killClue.text) this.killClues.push(killClue.text);
+          this.killCounts[this.myId] = myKills + 1;
+          this._checkNightDone();
+        } else {
+          this.net.relay({ t: 'KILL_ACTION', targetId: tid, killClue });
+        }
+      }
+    };
+  }
+
+  // ── Doctor Night: Protect + investigate ────────────────────
+  _showDoctorNight(alivePlayers) {
+    const canProtectSelf = !this.lastDoctorSelf;
+    const targets = this.players.filter(p => p.alive).map(p => ({
+      ...p, isSelf: p.id === this.myId
+    }));
+    const dl = ui.renderNightDoctorUI(targets, !canProtectSelf);
+    if (!dl) return;
+
+    dl.onclick = async (e) => {
+      const btn = e.target.closest('.bdet');
+      if (!btn || btn.disabled) return;
+      dl.querySelectorAll('.bdet').forEach(b => { b.disabled = true; b.style.opacity = b === btn ? '1' : '.25'; });
+      document.getElementById('docCfm').style.display = 'block';
+      const tid = btn.dataset.pid;
+      this.lastDoctorSelf = (tid === this.myId);
+      if (this.isHost) this.doctorTarget = tid;
+      else this.net.relay({ t: 'DOC_PROTECT', targetId: tid });
+      audio.haptic([50]);
+
+      // Doctor also gets to investigate (with detective-level QTE)
+      setTimeout(() => this._startInvestigationQTE(true), 1500);
+    };
+  }
+
+  // ── Investigator Night (Civilian / Detective): pick target → QTE ──
+  _showInvestigatorNight(alive) {
+    const area = document.getElementById('nAct');
+    if (!area) return;
+
+    const isDetective = this.myRole === 'detective';
+    const title = isDetective ? '🔍 Investigate a Suspect' : '🔎 Search for Clues';
+    const titleColor = isDetective ? 'var(--det-bright)' : 'var(--gold)';
+    const subtitle = isDetective
+      ? 'Your training gives you an edge — easier investigation.'
+      : 'You can investigate, but it\'s harder without training.';
+
+    area.innerHTML =
+      `<div style="color:${titleColor};font-family:var(--font-display);font-size:1rem;margin-bottom:4px">${title}</div>` +
+      `<div class="muted tc" style="font-size:.75rem;margin-bottom:14px">${subtitle}</div>` +
+      `<div id="investList"></div>` +
+      `<div id="investQTE" style="display:none"></div>` +
+      `<div id="investResult" style="display:none" class="cluebox"></div>`;
+
+    const il = document.getElementById('investList');
+    alive.forEach(p => {
+      const persona = this.personas.get(p.id);
+      const b = document.createElement('button');
+      b.className = 'bdet';
+      if (!isDetective) { b.style.borderColor = 'rgba(201,168,76,.3)'; b.style.background = 'rgba(201,168,76,.05)'; }
+      b.innerHTML = `<span>${persona ? persona.icon : '👤'} ${persona ? persona.name : ui.esc(p.name)}</span>`;
+      b.dataset.pid = p.id;
+      il.appendChild(b);
+    });
+
+    il.onclick = async (e) => {
+      const btn = e.target.closest('.bdet');
+      if (!btn || btn.disabled) return;
+      il.querySelectorAll('.bdet').forEach(b => b.disabled = true);
+      const tid = btn.dataset.pid;
+      il.style.display = 'none';
+
+      // Run investigation QTE
+      const diff = getInvestigateDifficulty(isDetective);
+      const qteArea = document.getElementById('investQTE');
+      qteArea.style.display = 'block';
+      const score = await runQTE(qteArea, diff, 'investigate');
+
+      // Generate investigation clue
+      const targetPersona = this.personas.get(tid);
+      const target = this.players.find(p => p.id === tid);
+      const result = generateInvestClue(targetPersona, target?.role, score);
+
+      // Show result to investigator
+      const resEl = document.getElementById('investResult');
+      if (resEl) {
+        resEl.innerHTML = result.text;
+        resEl.style.display = 'block';
+      }
+
+      // Send to host (detective results are stronger)
+      if (this.isHost) {
+        this.investigationClues.push({ playerId: this.myId, clue: result.text });
+      } else {
+        this.net.relay({ t: 'INVEST_RESULT', clue: result.text });
+      }
+    };
+  }
+
+  // ── Investigation QTE for Doctor (after protecting) ────────
+  _startInvestigationQTE(isDetective) {
+    const area = document.getElementById('nAct');
+    if (!area) return;
+    const alive = this.players.filter(p => p.alive && p.id !== this.myId);
+
+    // Append investigation UI after doctor protection
+    const div = document.createElement('div');
+    div.style.marginTop = '20px';
+    div.innerHTML =
+      `<div style="color:var(--det-bright);font-family:var(--font-display);font-size:.9rem;margin-bottom:8px">🔍 Also Investigate</div>` +
+      `<div id="docInvestList"></div>` +
+      `<div id="docInvestQTE" style="display:none"></div>` +
+      `<div id="docInvestResult" style="display:none" class="cluebox"></div>`;
+    area.appendChild(div);
+
+    const il = document.getElementById('docInvestList');
+    alive.forEach(p => {
+      const persona = this.personas.get(p.id);
+      const b = document.createElement('button');
+      b.className = 'bdet';
+      b.innerHTML = `<span>${persona ? persona.icon : '👤'} ${persona ? persona.name : ui.esc(p.name)}</span>`;
+      b.dataset.pid = p.id;
+      il.appendChild(b);
+    });
+
+    il.onclick = async (e) => {
+      const btn = e.target.closest('.bdet');
+      if (!btn || btn.disabled) return;
+      il.querySelectorAll('.bdet').forEach(b => b.disabled = true);
+      il.style.display = 'none';
+
+      const diff = getInvestigateDifficulty(isDetective);
+      const qteArea = document.getElementById('docInvestQTE');
+      qteArea.style.display = 'block';
+      const score = await runQTE(qteArea, diff, 'investigate');
+
+      const tid = btn.dataset.pid;
+      const targetPersona = this.personas.get(tid);
+      const target = this.players.find(p => p.id === tid);
+      const result = generateInvestClue(targetPersona, target?.role, score);
+
+      const resEl = document.getElementById('docInvestResult');
+      if (resEl) { resEl.innerHTML = result.text; resEl.style.display = 'block'; }
+
+      if (this.isHost) {
+        this.investigationClues.push({ playerId: this.myId, clue: result.text });
+      } else {
+        this.net.relay({ t: 'INVEST_RESULT', clue: result.text });
+      }
+    };
   }
 
   _checkNightDone() {
     const killers = this.players.filter(p => p.alive && p.role === 'killer');
     if (killers.every(k => this.nightActions[k.id])) {
       clearTimeout(this.nightTimeout);
-      this._resolveNight();
+      // Wait a moment for investigations to come in
+      setTimeout(() => this._resolveNight(), 2000);
     }
   }
 
@@ -491,10 +589,8 @@ export default class Game {
       const vic = this.players.find(p => p.id === top);
 
       if (vic && vic.alive) {
-        // Check doctor protection
         if (this.doctorTarget === top) {
           savedId = top;
-          // Player survives
         } else {
           vic.alive = false;
           killedId = top;
@@ -506,12 +602,15 @@ export default class Game {
     this.killedId = killedId;
     this.savedId = savedId;
 
+    // Combine all clues for the day
+    const allClues = [...this.killClues];
+
     const payload = {
       t: 'DAY',
       round: this.round,
-      killedId,
-      savedId,
-      clue: this.clue,
+      killedId, savedId,
+      killClues: allClues,
+      investigationClues: this.investigationClues,
       pa: this.players.map(p => ({ id: p.id, alive: p.alive }))
     };
     this.net.relay(payload);
@@ -528,7 +627,6 @@ export default class Game {
     this.phase = 'day';
     this.killedId = d.killedId;
     this.savedId = d.savedId;
-    this.clue = d.clue;
     this.votes = {};
     this.selVote = null;
     this.voted = false;
@@ -543,25 +641,44 @@ export default class Game {
     ui.hideDoctorSave();
     if (d.killedId) {
       const v = this.players.find(p => p.id === d.killedId);
-      ui.showDeathAnnounce(v?.name || 'Unknown');
-      ui.addLog(`Night ${this.round - 1}: ${v?.name || 'Someone'} was murdered.`, 'lk');
+      const vPersona = this.personas.get(d.killedId);
+      const displayName = vPersona ? `${vPersona.icon} ${vPersona.name} (${v?.name || 'Unknown'})` : (v?.name || 'Unknown');
+      ui.showDeathAnnounce(displayName);
+      ui.addLog(`Night ${this.round - 1}: ${displayName} was murdered.`, 'lk');
     } else if (d.savedId) {
       const sv = this.players.find(p => p.id === d.savedId);
-      ui.showDoctorSave(sv?.name || 'Someone');
-      ui.addLog(`Night ${this.round - 1}: Someone was attacked but was saved by the Doctor!`, 'lc');
+      const svPersona = this.personas.get(d.savedId);
+      const displayName = svPersona ? `${svPersona.icon} ${svPersona.name}` : (sv?.name || 'Someone');
+      ui.showDoctorSave(displayName);
+      ui.addLog(`Night ${this.round - 1}: ${displayName} was attacked but saved by the Doctor!`, 'lc');
       audio.play('save');
     } else {
       ui.addLog(`Night ${this.round - 1}: No one died.`, 'ls');
     }
 
-    // Clue
-    if (d.clue) ui.showClue(d.clue); else ui.hideClue();
+    // Show QTE-generated kill clues (from killer mistakes)
+    ui.hideClue();
+    if (d.killClues && d.killClues.length > 0) {
+      const clueHtml = d.killClues.map(c =>
+        `<div class="evidence-box"><span class="evidence-label">🔍 CRIME SCENE EVIDENCE</span>${c}</div>`
+      ).join('');
+      ui.showClue(clueHtml);
+    }
+
+    // Show investigation clues (each player sees their own + public summary)
+    if (d.investigationClues && d.investigationClues.length > 0) {
+      d.investigationClues.forEach(ic => {
+        const investigator = this.players.find(p => p.id === ic.playerId);
+        const iName = investigator?.name || 'Someone';
+        ui.addLog(`${iName}'s investigation: ${ic.clue.replace(/<[^>]*>/g, '')}`, 'lc');
+      });
+    }
 
     // Chips
     const al = this.players.filter(p => p.alive).length;
     ui.renderDayHeader(this.round - 1, al, this.players.length);
 
-    // Role reminder
+    // Role + persona reminder
     ui.showRoleReminder(this.myRole);
 
     // Votes
@@ -573,7 +690,7 @@ export default class Game {
     document.getElementById('deadMsg').style.display = isDead ? 'block' : 'none';
     document.getElementById('cvBtn').style.display = 'none';
 
-    // Last words for just-killed player
+    // Last words
     const lwPanel = document.getElementById('lastWordsPanel');
     if (d.killedId === this.myId && lwPanel) {
       lwPanel.style.display = 'block';
@@ -591,32 +708,40 @@ export default class Game {
     }
 
     // Chat
-    chat.setEnabled(!isDead || false); // dead can observe
     if (isDead) {
       chat.addMessage('', 'You are dead. You can watch but not speak.', 'system');
       chat.setEnabled(false);
+    } else {
+      chat.setEnabled(true);
     }
 
     // Day timer
     let tl = this.settings.dayTime || 60;
     ui.updateTimer('dTimer', tl);
     document.getElementById('dTimer').classList.remove('urg');
-
     clearInterval(this.dayInterval);
     this.dayInterval = setInterval(() => {
       tl--;
       ui.updateTimer('dTimer', tl);
-      if (tl <= 0) {
-        clearInterval(this.dayInterval);
-        if (this.isHost) this._closeVote();
-      }
+      if (tl <= 0) { clearInterval(this.dayInterval); if (this.isHost) this._closeVote(); }
     }, 1000);
   }
 
   _renderVotes() {
     const me = this.players.find(p => p.id === this.myId);
     const isDead = me && !me.alive;
-    const c = ui.renderVotes(this.players, this.myId, this.votes, this.selVote, this.voted, isDead, this.settings.hideVotes);
+
+    // Use personas in vote display
+    const displayPlayers = this.players.map(p => {
+      const persona = this.personas.get(p.id);
+      return {
+        ...p,
+        displayName: persona ? `${persona.icon} ${persona.name}` : p.name,
+        displayAvatar: persona ? persona.icon : (p.avatar || '👤')
+      };
+    });
+
+    const c = ui.renderVotes(displayPlayers, this.myId, this.votes, this.selVote, this.voted, isDead, this.settings.hideVotes);
     if (c) {
       c.onclick = (e) => {
         const btn = e.target.closest('.bplayer');
@@ -633,7 +758,9 @@ export default class Game {
     this._renderVotes();
     document.getElementById('cvBtn').style.display = 'flex';
     const p = this.players.find(x => x.id === id);
-    document.getElementById('vStatus').textContent = 'Selected: ' + (p?.name || '');
+    const persona = this.personas.get(id);
+    const name = persona ? `${persona.icon} ${persona.name}` : p?.name;
+    document.getElementById('vStatus').textContent = 'Selected: ' + name;
   }
 
   confirmVote() {
@@ -641,7 +768,6 @@ export default class Game {
     this.voted = true;
     document.getElementById('cvBtn').style.display = 'none';
     document.getElementById('vStatus').textContent = '✓ Vote cast';
-
     if (this.isHost) {
       this.votes[this.myId] = this.selVote;
       this.net.relay({ t: 'VOTE_UPDATE', votes: this.votes });
@@ -662,44 +788,35 @@ export default class Game {
 
   _closeVote() {
     if (!this.isHost) return;
-
     const tally = {};
     Object.values(this.votes).forEach(v => { tally[v] = (tally[v] || 0) + 1; });
     const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
 
     let exId = null;
-    if (sorted.length && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) {
-      exId = sorted[0][0];
-    }
+    if (sorted.length && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) exId = sorted[0][0];
 
     let isJester = false;
     if (exId) {
       const p = this.players.find(x => x.id === exId);
       if (p) {
-        if (p.role === 'jester') {
-          isJester = true;
-          this.jesterWinner = p.name;
-        }
+        if (p.role === 'jester') { isJester = true; this.jesterWinner = p.name; }
         p.alive = false;
       }
     }
 
-    // Check win condition
     const w = this._checkWin();
     if (w) {
       const payload = {
-        t: 'GAMEOVER',
-        winner: w,
+        t: 'GAMEOVER', winner: w,
         players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: p.alive, role: p.role })),
-        tally, exId, isJester,
-        jesterWinner: this.jesterWinner
+        tally, exId, isJester, jesterWinner: this.jesterWinner,
+        personas: Array.from(this.personas.entries()).map(([id, p]) => ({ id, persona: p }))
       };
       this.net.relay(payload);
       this._onGameOver(payload);
     } else {
       const payload = {
-        t: 'VERDICT',
-        tally, exId, isJester,
+        t: 'VERDICT', tally, exId, isJester,
         pa: this.players.map(p => ({ id: p.id, alive: p.alive, role: p.role })),
         jesterWinner: this.jesterWinner
       };
@@ -723,20 +840,17 @@ export default class Game {
       const p = this.players.find(x => x.id === u.id);
       if (p) { p.alive = u.alive; p.role = u.role || p.role; }
     });
-
     this.phase = 'verdict';
     ui.show('s-verdict');
     ui.hideRoleReminder();
 
     const ex = d.exId ? this.players.find(p => p.id === d.exId) : null;
     ui.renderVerdict(ex, d.isJester);
-
     if (ex) {
       const isK = ex.role === 'killer';
       ui.addLog(`${ex.name} executed — ${d.isJester ? 'the Jester! They win!' : isK ? 'a killer!' : 'innocent.'}`, 'lv');
       audio.play(d.isJester ? 'jester' : isK ? 'bad' : 'good');
     }
-
     ui.renderVoteBars(d.tally, this.players);
 
     let vc = 6;
@@ -744,10 +858,7 @@ export default class Game {
     const t = setInterval(() => {
       vc--;
       document.getElementById('vcT').textContent = vc;
-      if (vc <= 0) {
-        clearInterval(t);
-        if (this.isHost) this._beginNight();
-      }
+      if (vc <= 0) { clearInterval(t); if (this.isHost) this._beginNight(); }
     }, 1000);
   }
 
@@ -756,12 +867,7 @@ export default class Game {
     clearInterval(this.dayInterval);
     clearTimeout(this.nightTimeout);
     document.getElementById('nightOv').classList.remove('on');
-
-    // Update players with final data
-    if (d.players) {
-      this.players = d.players;
-    }
-
+    if (d.players) this.players = d.players;
     this.phase = 'over';
     ui.show('s-over');
     ui.hideRoleReminder();
@@ -792,6 +898,9 @@ export default class Game {
     this.voted = false;
     this.jesterWinner = null;
     this.lastDoctorSelf = false;
+    this.personas = new Map();
+    this.myPersona = null;
+    this.killCounts = {};
     chat.clear();
     ui.clearLog();
     this._showLobby();
@@ -800,16 +909,15 @@ export default class Game {
     }
   }
 
-  // ── Send Chat ──────────────────────────────────────────────
+  // ── Chat ───────────────────────────────────────────────────
   sendChat(text) {
     if (!text.trim()) return;
     const me = this.players.find(p => p.id === this.myId);
-    if (me && !me.alive) return; // dead can't chat
+    if (me && !me.alive) return;
     chat.addMessage(this.myName, text, 'normal');
     this.net.relay({ t: 'CHAT', name: this.myName, text, chatType: 'normal' });
   }
 
-  // ── Send Last Words ────────────────────────────────────────
   sendLastWords(text) {
     if (!text.trim()) return;
     chat.addMessage(this.myName, text, 'last-words');
@@ -818,12 +926,9 @@ export default class Game {
     clearTimeout(this.lastWordsTimeout);
   }
 
-  // ── Update Settings ────────────────────────────────────────
   updateSettings(settings) {
     this.settings = { ...this.settings, ...settings };
-    if (this.isHost) {
-      this.net.relay({ t: 'SETTINGS', settings: this.settings });
-    }
+    if (this.isHost) this.net.relay({ t: 'SETTINGS', settings: this.settings });
   }
 
   getStats() { return this.stats; }

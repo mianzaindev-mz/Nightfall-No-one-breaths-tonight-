@@ -4,12 +4,12 @@
 
 ### *No One Breathes Tonight*
 
-**A real-time multiplayer murder mystery game — self-contained in a single HTML file.**
+**A real-time multiplayer murder mystery game with skill-based kills and organic clue deduction.**
 
 [![License: Custom](https://img.shields.io/badge/License-Personal%20Use%20Only-red.svg)](#license)
 ![Players](https://img.shields.io/badge/Players-4%20to%2016-gold)
-![Zero Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen)
-![Platform](https://img.shields.io/badge/Platform-Any%20Browser-blue)
+![Platform](https://img.shields.io/badge/Platform-Any%20Browser%20%2B%20Mobile-blue)
+![Tech](https://img.shields.io/badge/Stack-Node.js%20%2B%20WebSocket-green)
 
 ---
 
@@ -19,72 +19,70 @@
 
 ## 🎮 What is NightFall?
 
-**NightFall** is a browser-based social deduction game inspired by classics like Mafia and Werewolf. Players are secretly assigned roles — **Killer**, **Detective**, or **Civilian** — and must survive the night through deception, investigation, and democratic justice.
+**NightFall** is a browser-based social deduction game for **4–16 players** on **any device**. Players are assigned secret roles and unique **game personas** (like "The Rose" or "The Raven"). Each night, killers attempt to strike through **QTE mini-games** — sloppy kills leave behind physical evidence pointing to the killer's persona. Meanwhile, **every other player** investigates suspects through their own QTE. Detectives are trained investigators with easier challenges; civilians can try too, but it's harder.
 
-The entire game runs from **a single HTML file** with **zero dependencies**, **zero servers**, and **zero installations**. Open the file, share the lobby code, and play.
+### What makes NightFall different?
+
+| Feature | How it Works |
+|---|---|
+| **🎮 QTE Kill System** | Killers play a timed key-sequence mini-game to attack. Perfect execution = no evidence. Failed QTE = clues left at the crime scene. **Difficulty escalates with each kill.** |
+| **🔍 Universal Investigation** | Every alive player can investigate at night via QTE — not just detectives. Better accuracy = stronger clues. Detectives get an easier QTE. |
+| **🎭 Persona System** | Each game assigns random themed identities ("The Clock­maker", "The Serpent"). Clues reference personas, making deduction an actual puzzle. |
+| **💀 Organic Clues** | Evidence isn't arbitrary — it's generated from the killer's QTE performance. "A torn petal was found" → someone with a rose identity... |
 
 ---
 
-## ✨ Features
+## ✨ Full Feature List
 
 | Feature | Details |
 |---|---|
-| **Real Multiplayer** | Play across multiple tabs, windows, or devices on the same network |
-| **Zero Setup** | No npm, no build step, no backend — just one `.html` file |
-| **4–16 Players** | Scales from small groups to large parties |
-| **3 Unique Roles** | Killer 🗡, Detective 🔍, Civilian 🧑 — each with distinct night actions |
-| **Day/Night Cycle** | Timed phases with atmospheric transitions |
-| **Voting System** | Democratic elimination with real-time vote tallies and visual breakdowns |
-| **Detective Clues** | Timed investigations that provide evidence to the town |
-| **Sound Design** | Procedurally generated audio effects using the Web Audio API |
-| **Animated Background** | Canvas-rendered night sky with twinkling stars and moonlight |
-| **Responsive UI** | Dark, cinematic aesthetic — plays beautifully on desktop and mobile |
-| **Instant Replay** | "Play Again" returns the lobby instantly after each game |
+| **True Cross-Device Multiplayer** | WebSocket-based — play on any PC or phone on the same network |
+| **QTE Kill System** | Skill-based kills with escalating difficulty and organic clue generation |
+| **Universal Investigation** | All players investigate at night; detectives have easier QTEs |
+| **Game Personas** | 16 unique themed identities per match for deduction gameplay |
+| **5 Roles** | Killer 🗡, Detective 🔍, Civilian 🧑, Doctor 🩺 (optional), Jester 🤡 (optional) |
+| **In-Game Chat** | Real-time discussion during the day phase |
+| **Last Words** | Murdered players get 10 seconds for dramatic final words |
+| **Host Settings** | Configurable timers, optional roles, vote visibility |
+| **Mobile Optimized** | Touch-friendly UI with 44px targets, mobile QTE buttons, PWA support |
+| **Anti-Cheat** | Each player only receives their own role from the server |
+| **Sound Design** | Procedural Web Audio API SFX — no audio files needed |
+| **Animated Background** | Canvas starfield with moon and night pulse effects |
+| **Host Migration** | If the host disconnects, a new host is automatically assigned |
+| **Reconnection** | Players can rejoin after brief disconnects |
 
 ---
 
 ## 🚀 Getting Started
 
-### Quick Start (Same Device)
+### Prerequisites
 
-1. Open `NightFall.html` in your browser.
-2. Enter your name and **Create Lobby**.
-3. Open additional tabs/windows for other players.
-4. Each new player enters the **6-character lobby code** and joins.
-5. Once 4+ players are in, the host clicks **"Begin the Night"**.
+- [Node.js](https://nodejs.org/) 16+ installed
 
-### Cross-Device Play (LAN / Remote)
+### Installation
 
-To play across different devices, serve the file over HTTP so all players share the same origin:
-
-**Option A — Python (built-in)**
 ```bash
-# Navigate to the folder containing NightFall.html
-cd path/to/NightFall
+# Clone the repository
+git clone https://github.com/your-username/NightFall.git
+cd NightFall
 
-# Python 3
-python -m http.server 8080
+# Install dependencies
+cd server
+npm install
 
-# Python 2
-python -m SimpleHTTPServer 8080
+# Start the server
+npm start
 ```
 
-**Option B — Node.js**
-```bash
-npx -y serve .
-```
+The server will start on `http://localhost:3000`. Open this URL in your browser.
 
-**Option C — PHP**
-```bash
-php -S 0.0.0.0:8080
-```
+### Playing Across Devices
 
-**Option D — VS Code**
-> Install the **Live Server** extension → right-click `NightFall.html` → **Open with Live Server**.
+1. Find your local IP address (e.g., `192.168.1.X`)
+2. Share `http://192.168.1.X:3000` with all players on the same network
+3. Players on phones, tablets, or other PCs can join via browser
 
-Then share your local IP (e.g., `http://192.168.1.X:8080/NightFall.html`) with all players on the same network.
-
-> **Tip:** For remote play over the internet, use a tunneling service like [ngrok](https://ngrok.com/), [localhost.run](https://localhost.run), or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/).
+> **Remote Play:** Use [ngrok](https://ngrok.com/), [localhost.run](https://localhost.run), or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to play over the internet.
 
 ---
 
@@ -92,62 +90,44 @@ Then share your local IP (e.g., `http://192.168.1.X:8080/NightFall.html`) with a
 
 ### Roles
 
-| Role | Ability | Win Condition |
+| Role | Night Action | Win Condition |
 |---|---|---|
-| 🗡 **Killer** | Choose a victim each night | Outnumber or equal the remaining players |
-| 🔍 **Detective** | Investigate one player per night (timed) | Eliminate all killers |
-| 🧑 **Civilian** | No special power — observe and vote wisely | Eliminate all killers |
+| 🗡 **Killer** | Select victim → QTE to kill (harder per kill) | Outnumber or equal the living |
+| 🔍 **Detective** | Investigate via QTE (easier — trained) | Eliminate all killers |
+| 🧑 **Civilian** | Investigate via QTE (harder — amateur) | Eliminate all killers |
+| 🩺 **Doctor** *(optional)* | Protect a player, then investigate | Eliminate all killers |
+| 🤡 **Jester** *(optional)* | No night action | Get voted out |
 
 ### Game Flow
 
 ```
-┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-│  LOBBY   │────▶│  NIGHT   │────▶│   DAY    │────▶│ VERDICT  │
-│          │     │          │     │          │     │          │
-│ 4-16     │     │ Killers  │     │ 60s to   │     │ Votes    │
-│ players  │     │ choose a │     │ discuss  │     │ tallied  │
-│ join     │     │ victim   │     │ & vote   │     │ & reveal │
-└──────────┘     └──────────┘     └──────────┘     └────┬─────┘
-                       ▲                                 │
-                       └─────────────────────────────────┘
-                              (until win condition)
+┌──────────┐     ┌───────────────┐     ┌──────────────┐     ┌──────────┐
+│  LOBBY   │────▶│    NIGHT      │────▶│     DAY      │────▶│ VERDICT  │
+│          │     │               │     │              │     │          │
+│ 4-16     │     │ Killers: QTE  │     │ Evidence +   │     │ Votes    │
+│ players  │     │ Everyone:     │     │ Clues shown  │     │ tallied  │
+│ join     │     │ Investigate   │     │ Discuss+Vote │     │ & reveal │
+└──────────┘     └───────────────┘     └──────────────┘     └────┬─────┘
+                       ▲                                         │
+                       └─────────────────────────────────────────┘
+                              (until win condition met)
 ```
 
-1. **Lobby** — Players join via lobby code. Host starts the game.
-2. **Role Reveal** — Each player privately sees their assigned role.
-3. **Night** — Killers select a target. Detectives investigate. Civilians sleep.
-4. **Day** — The murdered player is announced. Detective clues appear. Players discuss and vote.
-5. **Verdict** — The player with the most votes is executed; their role is revealed.
-6. **Repeat** — Night/Day cycles continue until one side wins.
+### QTE System
 
-### Win Conditions
+**Killer's Kill QTE:**
+| Kill # | Keys | Time per Key | On Failure |
+|---|---|---|---|
+| 1st | 2 keys | 1.8s | Vague hint |
+| 2nd | 3 keys | 1.4s | Persona trait clue |
+| 3rd | 4 keys | 1.1s | Physical evidence (item) |
+| 4th+ | 5 keys | 0.85s | Strong identification |
 
-- **Civilians win** when all killers are eliminated.
-- **Killers win** when they equal or outnumber the remaining non-killers.
-
----
-
-## 🛠 Technical Details
-
-| Aspect | Implementation |
-|---|---|
-| **Transport** | [BroadcastChannel API](https://developer.mozilla.org/en-US/docs/Web/API/BroadcastChannel) — real-time cross-tab/window messaging |
-| **Audio** | Web Audio API — procedurally generated sound effects (no audio files) |
-| **Graphics** | HTML5 Canvas — animated starfield, moon, and visual effects |
-| **Styling** | CSS custom properties, gradients, keyframe animations, glassmorphism |
-| **Typography** | Google Fonts — Cinzel Decorative, Crimson Text, Share Tech Mono |
-| **State Mgmt** | Host-authoritative model — the lobby creator manages game state |
-| **File Size** | ~40 KB — single self-contained HTML file |
-
-### Browser Support
-
-Any modern browser that supports the BroadcastChannel API:
-
-- ✅ Chrome / Edge 54+
-- ✅ Firefox 38+
-- ✅ Safari 15.4+
-- ✅ Opera 41+
-- ❌ Internet Explorer (not supported)
+**Investigation QTE:**
+| Investigator | Keys | Time per Key |
+|---|---|---|
+| Detective | 2 keys | 2.2s (easy) |
+| Civilian / Doctor | 3 keys | 1.5s (harder) |
 
 ---
 
@@ -155,20 +135,44 @@ Any modern browser that supports the BroadcastChannel API:
 
 ```
 NightFall/
-├── NightFall.html    # The entire game — HTML, CSS, and JS in one file
-├── README.md         # This file
-└── LICENSE           # Personal use license
+├── server/
+│   ├── server.js          # WebSocket relay server
+│   └── package.json       # Dependencies
+├── public/
+│   ├── index.html         # Game UI
+│   ├── manifest.json      # PWA manifest
+│   ├── css/
+│   │   ├── variables.css  # Design tokens
+│   │   ├── components.css # UI components + QTE styles
+│   │   ├── screens.css    # Screen layouts
+│   │   └── animations.css # Keyframes & transitions
+│   └── js/
+│       ├── main.js        # Entry point
+│       ├── network.js     # WebSocket client
+│       ├── game.js        # Game state machine
+│       ├── qte.js         # QTE engine + personas
+│       ├── roles.js       # Role definitions
+│       ├── ui.js          # DOM rendering
+│       ├── chat.js        # In-game chat
+│       ├── audio.js       # Sound effects
+│       └── canvas.js      # Background animation
+├── README.md
+└── LICENSE
 ```
-
-That's it. No build tools. No node_modules. No config files. Just one file that does everything.
 
 ---
 
-## ⚠️ Known Limitations
+## 🛠 Technical Details
 
-- **BroadcastChannel** only works across tabs/windows on the **same origin**. For cross-device play, you must serve the file via an HTTP server (see [Getting Started](#-getting-started)).
-- **No persistence** — game state lives in memory. Refreshing the page disconnects you.
-- **No chat** — communication happens face-to-face or through an external voice/text channel.
+| Aspect | Implementation |
+|---|---|
+| **Transport** | WebSocket (via `ws` library) — real-time cross-device communication |
+| **Server** | Node.js + Express — serves frontend + manages rooms |
+| **Audio** | Web Audio API — procedural sound effects |
+| **Graphics** | HTML5 Canvas — animated starfield with night pulse |
+| **QTE Engine** | Custom mini-game with keyboard + mobile touch support |
+| **State** | Host-authoritative — lobby creator manages game logic |
+| **PWA** | Installable on mobile with manifest.json |
 
 ---
 
@@ -176,8 +180,8 @@ That's it. No build tools. No node_modules. No config files. Just one file that 
 
 This project is licensed under a **custom personal-use license**.
 
-- ✅ **Personal entertainment** — You may use, copy, and share this game freely for personal, non-commercial enjoyment.
-- ❌ **Commercial use is strictly prohibited** — This includes but is not limited to: selling, sublicensing, monetizing, embedding in commercial products, using in paid events, or any form of commercial exploitation.
+- ✅ **Personal entertainment** — Use, copy, and share freely for non-commercial enjoyment
+- ❌ **Commercial use strictly prohibited** — No selling, sublicensing, monetizing, or commercial exploitation
 
 See [LICENSE](./LICENSE) for full terms.
 
@@ -187,27 +191,17 @@ See [LICENSE](./LICENSE) for full terms.
 
 ## 🤝 Contributing
 
-Contributions are welcome for personal/community improvement! If you'd like to contribute:
+Contributions welcome for personal/community improvement!
 
-1. **Fork** the repository
-2. Create a **feature branch** (`git checkout -b feature/your-feature`)
-3. **Commit** your changes (`git commit -m "Add: your feature"`)
-4. **Push** to the branch (`git push origin feature/your-feature`)
-5. Open a **Pull Request**
+1. Fork → Feature branch → Commit → PR
 
-> **Note:** All contributions fall under the same license terms. Commercial use of derivative works is prohibited.
-
----
-
-## 💬 Support
-
-If you encounter bugs or have feature requests, please [open an issue](../../issues).
+> All contributions fall under the same license. Commercial use of derivative works is prohibited.
 
 ---
 
 <div align="center">
 
-*Built with nothing but HTML, CSS, JavaScript, and a love for murder mysteries.*
+*Built with Node.js, WebSockets, and a love for murder mysteries.*
 
 **NIGHTFALL** — *No One Breathes Tonight*
 

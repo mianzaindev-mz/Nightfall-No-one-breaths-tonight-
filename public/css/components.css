@@ -693,6 +693,178 @@ hr { border: none; border-top: 1px solid rgba(201,168,76,.1); margin: 16px 0; }
 }
 .role-reminder .role-emoji { font-size: 1.1rem; }
 
+/* ── QTE (Quick Time Events) ─────────────────────────────────── */
+.qte-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+}
+.qte-label {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.qte-difficulty {
+  font-family: var(--font-mono);
+  font-size: .55rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--pale-dim);
+}
+.qte-sequence {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.qte-key {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  border: 2px solid rgba(201,168,76,.2);
+  border-radius: 6px;
+  background: rgba(255,255,255,.03);
+  color: var(--pale-dim);
+  transition: all .15s;
+}
+.qte-key.qte-active {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: var(--gold-glow);
+  animation: pu .6s infinite;
+  transform: scale(1.15);
+}
+.qte-key.qte-hit {
+  border-color: var(--success);
+  color: var(--success-light);
+  background: rgba(76,175,80,.15);
+}
+.qte-key.qte-miss {
+  border-color: var(--blood);
+  color: var(--blood-bright);
+  background: rgba(139,0,0,.15);
+  text-decoration: line-through;
+}
+.qte-timer-bar {
+  width: 100%;
+  max-width: 260px;
+  height: 5px;
+  background: rgba(255,255,255,.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.qte-timer-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 3px;
+  transition: width 0s;
+}
+.qte-progress {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .1em;
+}
+.qte-mobile-keys {
+  display: none;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.qte-mobile-btn {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border: 1px solid rgba(201,168,76,.25);
+  border-radius: 8px;
+  background: rgba(201,168,76,.06);
+  color: var(--pale);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all .1s;
+}
+.qte-mobile-btn:active {
+  background: rgba(201,168,76,.2);
+  transform: scale(.93);
+}
+.qte-hint {
+  font-family: var(--font-mono);
+  font-size: .55rem;
+  color: var(--pale-dim);
+  letter-spacing: .08em;
+}
+.qte-result {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  animation: pop .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+.qte-score {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  color: var(--pale-dim);
+  letter-spacing: .08em;
+}
+
+/* Show mobile buttons on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .qte-mobile-keys { display: flex; }
+  .qte-hint { display: none; }
+}
+@media (max-width: 480px) {
+  .qte-mobile-keys { display: flex; }
+  .qte-key { width: 42px; height: 42px; font-size: 1.2rem; }
+  .qte-mobile-btn { width: 50px; height: 50px; }
+}
+
+/* ── Persona Badge ──────────────────────────────────────────── */
+.persona-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(201,168,76,.05);
+  border: 1px solid rgba(201,168,76,.15);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: .6rem;
+  letter-spacing: .08em;
+  color: var(--gold-dim);
+  margin-bottom: 10px;
+}
+.persona-badge .persona-icon { font-size: 1.1rem; }
+.persona-badge .persona-name { color: var(--gold); }
+
+/* ── Clue Evidence Box ──────────────────────────────────────── */
+.evidence-box {
+  background: rgba(139,0,0,.08);
+  border: 1px solid rgba(139,0,0,.3);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 10px 0;
+  font-size: .85rem;
+  line-height: 1.65;
+  color: var(--pale);
+}
+.evidence-box .evidence-label {
+  font-family: var(--font-mono);
+  font-size: .6rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--blood-bright);
+  margin-bottom: 6px;
+  display: block;
+}
+
 /* ── Utility ────────────────────────────────────────────────── */
 .tc { text-align: center; }
 .mt8 { margin-top: var(--space-sm); }
