@@ -14,7 +14,23 @@
   <link rel="stylesheet" href="css/screens.css">
   <link rel="stylesheet" href="css/animations.css">
 </head>
-<body>
+<body style="overflow:hidden">
+
+  <!-- ═══ CINEMATIC INTRO ═══ -->
+  <div id="introOverlay" class="intro-overlay">
+    <div class="intro-particles" id="introParticles"></div>
+    <div class="intro-content">
+      <div class="intro-candle">🕯</div>
+      <div class="intro-title">NIGHT<em>FALL</em></div>
+      <div class="intro-tagline">No one breathes tonight</div>
+      <div class="intro-line"></div>
+      <div class="intro-subtitle">A game of shadows, deception & survival</div>
+    </div>
+    <div class="intro-skip">TAP ANYWHERE TO ENTER</div>
+  </div>
+
+  <!-- ═══ APP CONTENT (hidden until intro completes) ═══ -->
+  <div id="appContent" style="display:none">
   <canvas id="bgC"></canvas>
 
   <!-- Connection Status -->
@@ -28,19 +44,6 @@
 
   <!-- Notification Stack (bottom-right floating) -->
   <div id="notificationStack" class="notification-stack"></div>
-
-  <!-- ═══ CINEMATIC INTRO ═══ -->
-  <div id="introOverlay" class="intro-overlay">
-    <div class="intro-particles" id="introParticles"></div>
-    <div class="intro-content">
-      <div class="intro-candle">🕯</div>
-      <div class="intro-title">NIGHT<em>FALL</em></div>
-      <div class="intro-tagline">No one breathes tonight</div>
-      <div class="intro-line"></div>
-      <div class="intro-subtitle">A game of shadows, deception & survival</div>
-    </div>
-  </div>
-
   <!-- Toast -->
   <div id="toast"></div>
 
@@ -467,6 +470,94 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js"></script>
+  </div><!-- /appContent -->
+
+  <!-- Intro runs FIRST, then loads the app -->
+  <script>
+  (function() {
+    var overlay = document.getElementById('introOverlay');
+    var appContent = document.getElementById('appContent');
+
+    // If no intro, just load app immediately
+    if (!overlay) {
+      if (appContent) { appContent.style.display = ''; document.body.style.overflow = ''; }
+      var s = document.createElement('script'); s.type = 'module'; s.src = 'js/main.js'; document.body.appendChild(s);
+      return;
+    }
+
+    // Generate ember particles
+    var pc = document.getElementById('introParticles');
+    for (var i = 0; i < 50; i++) {
+      var p = document.createElement('div');
+      p.className = 'intro-particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.animationDelay = Math.random() * 4 + 's';
+      p.style.animationDuration = (3 + Math.random() * 5) + 's';
+      var size = 1.5 + Math.random() * 5;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.opacity = (0.15 + Math.random() * 0.55);
+      pc.appendChild(p);
+    }
+
+    // Random lightning flashes
+    var flashInterval = setInterval(function() {
+      if (Math.random() < 0.3) {
+        var flash = document.createElement('div');
+        flash.className = 'intro-flash';
+        overlay.appendChild(flash);
+        setTimeout(function() { flash.remove(); }, 200);
+      }
+    }, 1500);
+
+    // Dismiss handler
+    var dismissed = false;
+    function dismiss() {
+      if (dismissed) return;
+      dismissed = true;
+      clearInterval(flashInterval);
+
+      // Fade out the intro
+      overlay.classList.add('intro-done');
+
+      // After fade: remove intro, reveal app, load main.js
+      var cleaned = false;
+      function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        overlay.remove();
+
+        // Show app content with fade-in
+        if (appContent) {
+          appContent.style.display = '';
+          appContent.style.opacity = '0';
+          appContent.style.transition = 'opacity 0.8s ease';
+          document.body.style.overflow = '';
+          // Force reflow then fade in
+          appContent.offsetHeight;
+          appContent.style.opacity = '1';
+          setTimeout(function() {
+            appContent.style.transition = '';
+            appContent.style.opacity = '';
+          }, 900);
+        }
+
+        // NOW load the app
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = 'js/main.js';
+        document.body.appendChild(s);
+      }
+
+      overlay.addEventListener('transitionend', cleanup, { once: true });
+      setTimeout(cleanup, 2000); // fallback
+    }
+
+    // Auto dismiss after 5s, or click/touch to skip
+    setTimeout(dismiss, 5000);
+    overlay.addEventListener('click', dismiss);
+    overlay.addEventListener('touchstart', dismiss, { passive: true });
+  })();
+  </script>
 </body>
 </html>

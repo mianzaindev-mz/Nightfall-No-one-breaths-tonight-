@@ -170,6 +170,20 @@ export default class Game {
 
     n.on('KILL_ACTION', d => {
       if (this.isHost) {
+        // Check for target overlap before recording
+        const existingKillers = Object.entries(this.nightActions).filter(([kid, tid]) => tid === d.targetId && kid !== d._from);
+        if (existingKillers.length > 0) {
+          const targetName = this._pname(d.targetId);
+          const warningText = `⚠ WARNING: Multiple killers targeting ${targetName}! Consider splitting targets.`;
+          // Send warning to all killers
+          this.players.forEach(p => {
+            if (p.role === 'killer' && !p._isBot) {
+              this.net.sendTo(p.id, { t: 'TEAM_CHAT', team: 'killer', name: '⚠ System', text: warningText });
+            }
+          });
+          // Also show to host if killer
+          if (this.myRole === 'killer') chat.addMessage('⚠ System', warningText, 'team-killer', 'killer');
+        }
         this.nightActions[d._from] = d.targetId;
         // Support multi-clue per kill
         if (d.killClues?.length) d.killClues.forEach(c => { if (c.text) this.killClues.push({ text: c.text, accuracyPct: c.accuracyPct, isFalse: c.isFalse, strength: c.strength }); });

@@ -233,28 +233,3 @@ document.addEventListener('keydown', (e) => {
     document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
   }
 });
-
-// ── Cinematic Intro ──────────────────────────────────────────
-(function initIntro() {
-  const overlay = document.getElementById('introOverlay');
-  if (!overlay) return;
-  // Generate particles
-  const pc = document.getElementById('introParticles');
-  for (let i = 0; i < 30; i++) {
-    const p = document.createElement('div');
-    p.className = 'intro-particle';
-    p.style.left = Math.random() * 100 + '%';
-    p.style.animationDelay = Math.random() * 3 + 's';
-    p.style.animationDuration = (2 + Math.random() * 3) + 's';
-    p.style.opacity = (0.2 + Math.random() * 0.5);
-    pc.appendChild(p);
-  }
-  // Auto dismiss
-  const dismiss = () => {
-    if (overlay.classList.contains('intro-done')) return;
-    overlay.classList.add('intro-done');
-    setTimeout(() => overlay.remove(), 800);
-  };
-  setTimeout(dismiss, 3500);
-  overlay.addEventListener('click', dismiss);
-})();
