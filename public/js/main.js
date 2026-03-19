@@ -61,16 +61,20 @@ ui.renderStats(game.getStats());
 
 // ── Landing Buttons ──────────────────────────────────────────
 document.getElementById('btnCreate').addEventListener('click', () => {
-  const name = document.getElementById('iName').value.trim();
+  const raw = document.getElementById('iName').value.trim();
+  const name = raw.replace(/<[^>]*>/g, '').slice(0, 20);
   if (!name) { ui.toast('Enter your name first', true); return; }
+  if (name.length < 1 || name.length > 20) { ui.toast('Name must be 1-20 characters', true); return; }
   if (net.status !== 'connected') { ui.toast('Not connected to server', true); return; }
   game.createLobby(name, selectedAvatar);
 });
 
 document.getElementById('btnJoin').addEventListener('click', () => {
-  const name = document.getElementById('iName').value.trim();
+  const raw = document.getElementById('iName').value.trim();
+  const name = raw.replace(/<[^>]*>/g, '').slice(0, 20);
   const code = document.getElementById('iCode').value.trim().toUpperCase();
   if (!name) { ui.toast('Enter your name first', true); return; }
+  if (name.length < 1 || name.length > 20) { ui.toast('Name must be 1-20 characters', true); return; }
   if (!code || code.length < 4) { ui.toast('Enter a valid lobby code', true); return; }
   if (net.status !== 'connected') { ui.toast('Not connected to server', true); return; }
   game.joinLobby(name, selectedAvatar, code);
