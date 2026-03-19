@@ -256,3 +256,50 @@ document.addEventListener('keydown', (e) => {
     syncBodyLock();
   }
 });
+
+// ── Lobby Progress Bar Updater ───────────────────────────────
+function updateLobbyProgress() {
+  const bar = document.getElementById('lobbyProgressBar');
+  const text = document.getElementById('lobbyProgressText');
+  if (!bar || !text) return;
+  const count = game.players.length;
+  const min = 4;
+  const max = 16;
+  const pct = Math.min(100, Math.round((count / max) * 100));
+  bar.style.width = pct + '%';
+  if (count < min) {
+    text.textContent = `Need ${min - count} more player${min - count > 1 ? 's' : ''} to start`;
+    bar.classList.remove('lobby-progress-ready');
+  } else {
+    text.textContent = `${count}/${max} players — Ready to start!`;
+    bar.classList.add('lobby-progress-ready');
+  }
+}
+// Hook into lobby render cycle
+const origRenderLobby = game._renderLobby.bind(game);
+game._renderLobby = function () { origRenderLobby(); updateLobbyProgress(); };
+
+// ── PWA Install Prompt ───────────────────────────────────────
+let deferredPrompt = null;
+if (!localStorage.getItem('nf_pwa_dismissed')) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const banner = document.createElement('div');
+    banner.className = 'pwa-banner';
+    banner.innerHTML = `<span>📲 Install NightFall as an app for the best experience</span>
+      <div class="pwa-banner-actions">
+        <button class="btn btn-sm btn-gold" id="pwaBtnInstall">Install</button>
+        <button class="btn btn-sm btn-out" id="pwaBtnDismiss">Later</button>
+      </div>`;
+    document.body.appendChild(banner);
+    document.getElementById('pwaBtnInstall').onclick = () => {
+      deferredPrompt?.prompt();
+      deferredPrompt?.userChoice?.then(() => { banner.remove(); deferredPrompt = null; });
+    };
+    document.getElementById('pwaBtnDismiss').onclick = () => {
+      banner.remove();
+      localStorage.setItem('nf_pwa_dismissed', '1');
+    };
+  });
+}

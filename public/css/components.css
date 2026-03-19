@@ -3172,3 +3172,109 @@ h3, .modal h3, .recap-title, .chronicle-title {
     min-width: 44px;
   }
 }
+
+/* ── Social Deduction Heatmap ─────────────────────────────── */
+.heatmap-grid {
+  display: grid; gap: 1px; margin: 8px 0;
+  grid-template-columns: minmax(60px, auto) repeat(var(--hm-cols, 5), 1fr);
+  font-size: .55rem; overflow-x: auto;
+}
+.heatmap-cell {
+  padding: 3px 4px; text-align: center; border-radius: 2px;
+  background: rgba(255,255,255,.03);
+}
+.heatmap-corner { background: transparent; }
+.heatmap-header { font-weight: 700; color: var(--gold-dim); font-size: .5rem; }
+.heatmap-row-label { text-align: left; font-size: .5rem; color: var(--pale-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
+.heatmap-correct { background: rgba(76,175,80,.25); color: #81c784; }
+.heatmap-wrong { background: rgba(229,57,53,.2); color: #ef9a9a; }
+.heatmap-skip { background: rgba(255,255,255,.04); color: rgba(255,255,255,.25); }
+.heatmap-legend { display: flex; gap: 10px; font-size: .5rem; color: var(--pale-dim); margin-top: 4px; flex-wrap: wrap; }
+.heatmap-legend-item { display: flex; align-items: center; gap: 3px; }
+.heatmap-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.heatmap-dot.heatmap-correct { background: rgba(76,175,80,.5); }
+.heatmap-dot.heatmap-wrong { background: rgba(229,57,53,.4); }
+.heatmap-dot.heatmap-skip { background: rgba(255,255,255,.1); }
+
+/* ── Death Card ───────────────────────────────────────────── */
+.death-card-overlay {
+  position: fixed; inset: 0; z-index: 9990; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.85); animation: deathCardIn .6s ease-out;
+}
+.death-card {
+  text-align: center; padding: 32px 28px; border: 1px solid rgba(229,57,53,.3);
+  background: rgba(20,0,0,.9); border-radius: 16px; max-width: 320px;
+  backdrop-filter: blur(12px); box-shadow: 0 0 60px rgba(229,57,53,.15);
+}
+.death-card-icon { font-size: 3rem; margin-bottom: 8px; }
+.death-card-title {
+  font-family: var(--font-display); color: var(--blood-bright); font-size: 1.1rem;
+  letter-spacing: 2px; margin-bottom: 4px;
+}
+.death-card-name { font-size: .9rem; color: var(--pale); margin-bottom: 12px; }
+.death-card-details { font-size: .75rem; color: var(--pale-dim); line-height: 1.6; margin-bottom: 12px; }
+.death-card-quote { font-size: .65rem; font-style: italic; color: rgba(255,255,255,.25); margin-bottom: 16px; }
+.death-card-dismiss { width: 100%; }
+.death-card-fade { animation: deathCardOut .5s ease-in forwards; }
+@keyframes deathCardIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes deathCardOut { to { opacity: 0; transform: scale(.95); } }
+
+/* ── Phase Transition Overlay ─────────────────────────────── */
+.phase-transition-overlay {
+  position: fixed; inset: 0; z-index: 9980; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; background: rgba(6,6,10,.95);
+  animation: phaseTransIn .3s ease-out;
+}
+.phase-transition-icon { font-size: 2.5rem; margin-bottom: 8px; animation: phaseIconPulse .6s ease; }
+.phase-transition-name {
+  font-family: var(--font-display); font-size: 1.2rem; color: var(--gold);
+  letter-spacing: 3px; text-transform: uppercase;
+}
+.phase-transition-out { animation: phaseTransOut .4s ease-in forwards; }
+@keyframes phaseTransIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes phaseTransOut { to { opacity: 0; } }
+@keyframes phaseIconPulse { 0% { transform: scale(.5); opacity: 0; } 60% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ── Lobby Progress Bar ───────────────────────────────────── */
+.lobby-progress-wrap {
+  position: relative; height: 18px; background: rgba(255,255,255,.05);
+  border-radius: 9px; margin: 8px 0 12px; overflow: hidden;
+}
+.lobby-progress-bar {
+  height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  border-radius: 9px; transition: width .4s ease;
+}
+.lobby-progress-bar.lobby-progress-ready {
+  animation: lobbyPulse 1.5s ease infinite;
+}
+.lobby-progress-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: .55rem; color: var(--pale); text-shadow: 0 1px 2px rgba(0,0,0,.6);
+  pointer-events: none; letter-spacing: .5px;
+}
+@keyframes lobbyPulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+
+/* ── Room Tooltip ─────────────────────────────────────────── */
+.room-tooltip-trigger {
+  cursor: help; position: relative;
+}
+.room-tooltip-trigger:hover::after {
+  content: attr(title); position: absolute; bottom: 100%; left: 50%;
+  transform: translateX(-50%); background: rgba(6,6,10,.95);
+  border: 1px solid rgba(201,168,76,.2); border-radius: 6px;
+  padding: 6px 10px; font-size: .6rem; color: var(--pale-dim);
+  white-space: nowrap; z-index: 100; pointer-events: none;
+  max-width: 200px; white-space: normal; line-height: 1.3;
+}
+
+/* ── PWA Install Banner ───────────────────────────────────── */
+.pwa-banner {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(6,6,10,.9); border: 1px solid rgba(201,168,76,.3);
+  backdrop-filter: blur(12px); padding: 10px 16px; border-radius: 12px;
+  display: flex; align-items: center; gap: 12px; z-index: 9999;
+  font-size: .75rem; color: var(--pale); max-width: 380px;
+  animation: pwaBannerIn .4s ease-out;
+}
+.pwa-banner-actions { display: flex; gap: 6px; flex-shrink: 0; }
+@keyframes pwaBannerIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }

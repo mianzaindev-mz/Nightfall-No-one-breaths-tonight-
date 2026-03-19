@@ -169,7 +169,7 @@ export default class UIManager {
       // Alibi: show room assignment if available
       const roomId = g.playerLocations?.[p.id];
       const roomData = roomId ? g.manor?.getRoom(roomId) : null;
-      const roomLabel = (roomData && alive) ? `<span class="gh-room-tag" title="Last known location">${roomData.icon} ${roomData.name}</span>` : '';
+      const roomLabel = (roomData && alive) ? `<span class="gh-room-tag room-tooltip-trigger" title="${roomData.desc || ''} (Floor ${roomData.floor})">${roomData.icon} ${roomData.name}</span>` : '';
       // Accusation badge
       const accuseBadge = g.accusation?.isAccused?.(p.id) ? '<span class="gh-accuse-badge">🔴</span>' : '';
       // Trait viewer icon
@@ -354,6 +354,33 @@ export default class UIManager {
     }
     if (!Object.keys(g.suspicionVotes).length && !g.voteHistory.length && kSus < 6 && dSus < 6) {
       html += `<div class="muted" style="padding:20px;text-align:center">No suspicion data yet.</div>`;
+    }
+    // Social Deduction Heatmap
+    if (g.voteHistory.length > 0) {
+      html += '<div class="gh-sub-title">📊 Vote Heatmap</div>';
+      const voters = g.players.filter(p => g.charData[p.id]);
+      html += '<div class="heatmap-grid">';
+      // Header row
+      html += '<div class="heatmap-cell heatmap-corner"></div>';
+      g.voteHistory.forEach(vh => { html += `<div class="heatmap-cell heatmap-header">R${vh.round}</div>`; });
+      // Player rows
+      voters.forEach(voter => {
+        html += `<div class="heatmap-cell heatmap-row-label">${g._pname(voter.id)}</div>`;
+        g.voteHistory.forEach(vh => {
+          const vote = vh.votes?.[voter.id];
+          let cls = 'heatmap-skip';
+          let label = '—';
+          if (vote && vote !== 'SKIP') {
+            const target = g.players.find(p => p.id === vote);
+            const wasKiller = target?.role === 'killer';
+            cls = wasKiller ? 'heatmap-correct' : 'heatmap-wrong';
+            label = g._pname(vote).split(' ').pop()?.slice(0, 3) || '?';
+          }
+          html += `<div class="heatmap-cell ${cls}" title="${vote === 'SKIP' ? 'Skipped' : vote ? g._pname(vote) : 'No vote'}">${label}</div>`;
+        });
+      });
+      html += '</div>';
+      html += '<div class="heatmap-legend"><span class="heatmap-legend-item"><span class="heatmap-dot heatmap-correct"></span>Voted Killer</span><span class="heatmap-legend-item"><span class="heatmap-dot heatmap-wrong"></span>Voted Innocent</span><span class="heatmap-legend-item"><span class="heatmap-dot heatmap-skip"></span>Skip/No Vote</span></div>';
     }
     body.innerHTML = html;
   }

@@ -143,6 +143,9 @@ export default class Game {
     this.uiManager = new UIManager(this);
     this.phaseManager = new PhaseManager(this);
     this.netAction = new NetAction(this);  // registers all websocket handlers
+
+    // Attempt state restoration from sessionStorage on reload
+    this._tryRestoreState();
   }
 
   _pname(pid) { const d = this.charData[pid]; return d ? `${d.persona.icon} ${d.persona.name}` : '???'; }
@@ -311,7 +314,7 @@ export default class Game {
   _beginNight() { this.phaseManager.beginNight(); }
 
   _showNight(dur) {
-    this.phase = 'night';
+    this.phase = 'night'; this._saveState(); audio.setAmbience('night');
     if (this.canvasCtrl) this.canvasCtrl.setNightPulse(1);
     document.getElementById('nightOv').classList.add('on');
     document.getElementById('nBig').textContent = `NIGHT ${this.round}`;
@@ -688,7 +691,10 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   _onInvestigate(d) {
     d.pa.forEach(u => { const p = this.players.find(x => x.id === u.id); if (p) p.alive = u.alive; });
-    this.phase = 'investigate';
+    // Show death card if I died this round
+    const meAlive = d.pa.find(u => u.id === this.myId);
+    if (meAlive && !meAlive.alive) this._showDeathCard(this.myId, d.deathRoom);
+    this.phase = 'investigate'; this._saveState(); audio.setAmbience('investigate');
     // Reset per-phase counters
     this.teamChatUsed = 0;
     this._renderResourceHUD();
@@ -793,6 +799,8 @@ export default class Game {
     clearInterval(this.investInterval);
     this.investInterval = setInterval(() => {
       tl--; ui.updateTimer('dTimer', tl);
+      this.ux.applyTimerWarning(tl, document.getElementById('dTimer'));
+      if (tl <= 5 && tl > 0) audio.play('tick');
       if (tl <= 0) { clearInterval(this.investInterval); if (this.isHost) this._beginDinner(); }
     }, 1000);
   }
@@ -1231,7 +1239,8 @@ export default class Game {
 
   _onDinner(d) {
     d.pa.forEach(u => { const p = this.players.find(x => x.id === u.id); if (p) p.alive = u.alive; });
-    this.phase = 'dinner'; this.votes = {}; this.selVote = null; this.voted = false;
+    this.phase = 'dinner'; this._saveState(); audio.setAmbience('dinner');
+    this.votes = {}; this.selVote = null; this.voted = false;
     // Reset per-phase counters
     this.teamChatUsed = 0;
     this._renderResourceHUD();
@@ -1332,7 +1341,7 @@ export default class Game {
     ui.updateTimer('dTimer', tl);
     document.getElementById('dTimer').classList.remove('urg');
     clearInterval(this.dayInterval);
-    this.dayInterval = setInterval(() => { tl--; ui.updateTimer('dTimer', tl); if (tl <= 0) { clearInterval(this.dayInterval); if (this.isHost) this._closeVote(); } }, 1000);
+    this.dayInterval = setInterval(() => { tl--; ui.updateTimer('dTimer', tl); this.ux.applyTimerWarning(tl, document.getElementById('dTimer')); if (tl <= 5 && tl > 0) audio.play('tick'); if (tl <= 0) { clearInterval(this.dayInterval); if (this.isHost) this._closeVote(); } }, 1000);
   }
 
   _renderVotes() {
@@ -1395,7 +1404,8 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   _onVerdict(d) {
     d.pa.forEach(u => { const p = this.players.find(x => x.id === u.id); if (p) { p.alive = u.alive; p.role = u.role || p.role; } });
-    this.phase = 'verdict'; ui.show('s-verdict'); ui.hideRoleReminder();
+    this.phase = 'verdict'; this._saveState(); audio.setAmbience('verdict');
+    ui.show('s-verdict'); ui.hideRoleReminder();
     if (d.voteHistory) this.voteHistory = d.voteHistory;
     const ex = d.exId ? this.players.find(p => p.id === d.exId) : null;
     if (ex) ex._displayName = this._pname(d.exId);
@@ -1459,7 +1469,8 @@ export default class Game {
     clearInterval(this.dayInterval); clearInterval(this.investInterval); clearTimeout(this.nightTimeout);
     document.getElementById('nightOv').classList.remove('on');
     if (d.players) this.players = d.players;
-    this.phase = 'over'; ui.show('s-over'); ui.hideRoleReminder();
+    this.phase = 'over'; this._clearSavedState(); audio.setAmbience(null);
+    ui.show('s-over'); ui.hideRoleReminder();
     if (this.canvasCtrl) this.canvasCtrl.setNightPulse(0);
     const kw = d.winner === 'killers';
     const revealPlayers = this.players.map(p => ({ ...p, displayName: `${this._pname(p.id)} — ${p.name}` }));
@@ -1485,7 +1496,7 @@ export default class Game {
     this._isRevote = false; this._revoteTiedIds = null;
     this.teamChatUsed = 0; this.teamSuspicionCounters = { killer: 0, detective: 0 };
     this.forgesUsed = 0; this.traitInvestsUsed = 0; this.dossier = {};
-    clearInterval(this.graceInterval);
+    clearInterval(this.graceInterval); this._clearSavedState(); audio.setAmbience(null);
     chat.clear(); ui.clearLog(); this._showLobby();
     if (this.isHost) this.net.relay({ t: 'PL', pl: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: true })) });
   }
@@ -1548,6 +1559,86 @@ export default class Game {
   }
 
   getStats() { return this.stats; }
+
+  // ══════════════════════════════════════════════════════════
+  // STATE PERSISTENCE (sessionStorage)
+  // ══════════════════════════════════════════════════════════
+  _saveState() {
+    try {
+      const state = {
+        ts: Date.now(), phase: this.phase, round: this.round, myRole: this.myRole,
+        lobbyCode: this.lobbyCode, isHost: this.isHost, myId: this.myId, myName: this.myName,
+        settings: this.settings, evidenceLedger: this.evidenceLedger,
+        voteHistory: this.voteHistory, dossier: this.dossier,
+      };
+      sessionStorage.setItem('nf_gameState', JSON.stringify(state));
+    } catch {}
+  }
+
+  _clearSavedState() { try { sessionStorage.removeItem('nf_gameState'); } catch {} }
+
+  _tryRestoreState() {
+    try {
+      const raw = sessionStorage.getItem('nf_gameState');
+      if (!raw) return false;
+      const s = JSON.parse(raw);
+      if (Date.now() - s.ts > 300000) { this._clearSavedState(); return false; } // 5min expiry
+      if (!s.lobbyCode || s.phase === 'lobby' || s.phase === 'over') { this._clearSavedState(); return false; }
+      // Restore partial state
+      this.lobbyCode = s.lobbyCode; this.myRole = s.myRole; this.isHost = s.isHost;
+      this.settings = s.settings || this.settings;
+      this.evidenceLedger = s.evidenceLedger || []; this.voteHistory = s.voteHistory || [];
+      this.dossier = s.dossier || {};
+      // Attempt to rejoin the room
+      this.net.roomCode = s.lobbyCode;
+      this.net.joinRoom(s.myId, s.myName, s.lobbyCode);
+      ui.toast('Reconnecting to game...');
+      return true;
+    } catch { return false; }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // CINEMATIC PHASE TRANSITION
+  // ══════════════════════════════════════════════════════════
+  _showPhaseTransition(phaseName, icon, callback) {
+    audio.play('transition');
+    const overlay = document.createElement('div');
+    overlay.className = 'phase-transition-overlay';
+    overlay.innerHTML = `<div class="phase-transition-icon">${icon}</div><div class="phase-transition-name">${phaseName}</div>`;
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+      overlay.classList.add('phase-transition-out');
+      setTimeout(() => { overlay.remove(); callback?.(); }, 400);
+    }, 600);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // DEATH RECAP CARD
+  // ══════════════════════════════════════════════════════════
+  _showDeathCard(victimId, room) {
+    if (victimId !== this.myId) return;
+    audio.play('death');
+    const persona = this.charData[victimId]?.persona;
+    const roomData = room ? this.manor?.getRoom(room) : null;
+    const overlay = document.createElement('div');
+    overlay.className = 'death-card-overlay';
+    overlay.innerHTML = `<div class="death-card">
+      <div class="death-card-icon">${persona?.icon || '💀'}</div>
+      <div class="death-card-title">YOU HAVE BEEN KILLED</div>
+      <div class="death-card-name">${persona?.name || 'Unknown'}</div>
+      <div class="death-card-details">
+        ${roomData ? `<div>🏠 ${roomData.icon} ${roomData.name}</div>` : ''}
+        <div>⏱ Survived ${this.round} round${this.round !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="death-card-quote">The shadows claimed another soul...</div>
+      <button class="btn btn-out death-card-dismiss">Continue as Spectator</button>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.death-card-dismiss').onclick = () => {
+      overlay.classList.add('death-card-fade');
+      setTimeout(() => overlay.remove(), 500);
+    };
+  }
 
   // ══════════════════════════════════════════════════════════
   // NIGHT EVENTS

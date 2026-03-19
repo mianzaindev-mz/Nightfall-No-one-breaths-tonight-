@@ -120,7 +120,68 @@ class Audio {
         this.tone(392, 'square', 0.15, 0.08, 0.3);
         this.tone(330, 'square', 0.3, 0.08, 0.45);
         break;
+
+      case 'tick':
+        this.tone(900, 'sine', 0.04, 0.12);
+        this.tone(450, 'sine', 0.03, 0.06, 0.05);
+        break;
+
+      case 'ghost':
+        this.tone(200, 'sine', 1.2, 0.06);
+        this.tone(250, 'triangle', 0.8, 0.04, 0.3);
+        this.tone(180, 'sine', 1, 0.03, 0.6);
+        break;
+
+      case 'death':
+        this.tone(80, 'sine', 1.5, 0.2);
+        this.tone(60, 'sine', 2, 0.15, 0.3);
+        this.tone(200, 'sawtooth', 0.4, 0.1, 0.1);
+        this.tone(40, 'sine', 2, 0.1, 0.8);
+        break;
+
+      case 'transition':
+        this.tone(300, 'sine', 0.3, 0.08);
+        this.tone(400, 'sine', 0.25, 0.06, 0.15);
+        this.tone(500, 'sine', 0.2, 0.04, 0.3);
+        break;
     }
+  }
+
+  // Dynamic phase ambience (oscillator drone)
+  setAmbience(phase) {
+    if (this.muted || !this.ctx) { this._stopAmbience(); return; }
+    this._stopAmbience();
+    if (!phase || phase === 'lobby' || phase === 'over') return;
+
+    const configs = {
+      night:       [{ freq: 55,  type: 'sine', vol: 0.03 }, { freq: 82,  type: 'triangle', vol: 0.015 }],
+      investigate: [{ freq: 220, type: 'sine', vol: 0.02 }, { freq: 330, type: 'triangle', vol: 0.01 }],
+      dinner:      [{ freq: 110, type: 'sine', vol: 0.025 }, { freq: 165, type: 'triangle', vol: 0.012 }],
+      verdict:     [{ freq: 73,  type: 'sawtooth', vol: 0.02 }, { freq: 98,  type: 'sine', vol: 0.015 }],
+    };
+    const cfg = configs[phase];
+    if (!cfg) return;
+
+    this._ambienceNodes = [];
+    cfg.forEach(c => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.connect(g); g.connect(this.ctx.destination);
+      o.type = c.type; o.frequency.value = c.freq;
+      g.gain.setValueAtTime(0, this.ctx.currentTime);
+      g.gain.linearRampToValueAtTime(c.vol, this.ctx.currentTime + 1.5);
+      o.start();
+      this._ambienceNodes.push({ osc: o, gain: g });
+    });
+  }
+
+  _stopAmbience() {
+    if (!this._ambienceNodes) return;
+    const t = this.ctx?.currentTime || 0;
+    this._ambienceNodes.forEach(n => {
+      try { n.gain.gain.linearRampToValueAtTime(0, t + 0.5); n.osc.stop(t + 0.6); } catch {}
+    });
+    this._ambienceNodes = null;
   }
 
   haptic(pattern = [50]) {
