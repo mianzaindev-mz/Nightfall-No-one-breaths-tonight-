@@ -1,0 +1,76 @@
+# 📓 Developer Diary: NightFall Season 2 (Confidential)
+
+> **Purpose:** A hidden, brutally honest tracking file to log every action, architectural decision, error, and course correction over the lifecycle of NightFall's development. 
+
+---
+
+## 📅 THE HISTORY (What We've Done So Far)
+
+### Phase 0: The Initial State & Critical Fixes
+- **The Starting Point:** Inherited a functional but deeply flawed 10-script multiplayer game (`game.js`, `canvas.js`, `network.js`, etc.).
+- **Initial Request:** User wanted the intro animation (blood drip) to play completely separately before the landing page menu loaded, and to include particle effects/cinematics.
+- **The First Mess-up:** Initially attempted to overlay the canvas on top of the DOM. The scrollbar and cursor interactions from the underlying menu were still bleeding through, allowing players to interact with the game before the animation finished. 
+- **The Fix:** Hard-disabled the landing page container (`display: none` / `pointer-events: none`) until the animation successfully completed its timeline. Added a smooth fade-in transition and fixed the overlap bug.
+
+### Phase 1: The Massive Game Audit (Scaling Up Depth)
+- **The Pivot:** User asked to scan the *entire* codebase (JavaScript, CSS, HTML) to recommend massive improvements to game depth, quality, player friendliness, and UI/UX.
+- **The Scan:** Read through all 2,238 lines of `game.js`, plus `roles.js`, `network.js`, and `chat.js`. 
+- **The Revelations (Code Sins):**
+  1. `game.js` is a monolithic nightmare. It controls websockets, DOM elements (`innerHTML`), phase timers, logic, and arrays all at once.
+  2. The `sendTo()` function was being called but didn't actually exist in `network.js` (it only had `relay()`). Sent the game crashing if triggered. 
+  3. `index.html` prominently promised 4-16 players, but the backend supported 30.
+  4. Avatar grid was rendering twice due to a deprecated `arguments.callee` call.
+- **The Audit Generation:** Produced a massive 33-point recommendation document (`improvement_audit.md`).
+
+### Phase 2: Season 2 Refinements (Iterative Expansions)
+- **Expansion 1:** User loved the audit but wanted *more*. Specifically demanded: Vote-to-Kick, Host Privileges, improved Accusation mechanics (preventing abuse), limited Civilian Night Activities, and a complete mapping of the Manor location.
+- **Expansion 2 (The Manor Realized):** Built the concept for a 26-room, 3-floor Blackwell Manor. Established strict sound propagation rules (sound only travels horizontally, never vertically, except for one secret passage). 
+- **Expansion 3 (Dynamic Difficulty):** User pointed out the flat 5% difficulty increase for killers was unfair in large (15+ player) lobbies. We instituted scaling tiers (+1.5% to +3% per round based on lobby size) and hard-capped killer penalty at +15%, and investigation ease at -10%.
+
+### Phase 3: The Deep Mechanics & Loopholes
+- **The Evidence Expiry Debate:**
+  - Initial idea: Evidence permanent expiry after 6 rounds. Destroyed forever.
+  - The Course Correction: User realized old evidence should have *some* value. Reversed the permanent destruction. Evidence now decays to a **20% hard floor**. It's useless for certainty, but good for a gut feeling.
+- **Role Abilities & QTEs:**
+  - Designed 12 cinematic QTEs (magnifying glasses, heartbeat timing, flame holding).
+  - Designed 8 Role Abilities (Killer's Evidence Burn, Detective's Cold Case puzzle, Civilian Town Watch).
+- **The Loophole Hunt:** Ran a rigorous vulnerability scan across the whole audit. Found 11 exploits.
+  - *Fixed:* Killer colluding to forge and destroy their own evidence (made them mutually exclusive and completely blind).
+  - *Fixed:* Dead players using free-text Ghost Clues to explicitly name the killer (changed to pre-selected vague phrases).
+  - *Fixed:* Final round accusation spam (now requires 2 pieces of evidence on the last day).
+
+### Phase 4: Locking in Season 2
+- User confirmed the scope is perfect.
+- Added Season 2 UI branding (glassmorphism, cinematic typography).
+- Created the master architecture plan (`implementation_plan.md`) defining a 4-Stage, modular teardown of `game.js`.
+
+---
+
+## 🔮 THE FUTURE (What We Are Going To Do)
+
+### Stage 1: The Teardown (Architecture Prep) - **NEXT UP**
+*The most dangerous part of the project. We are performing open-heart surgery on a live application.*
+- Extract all networking events to `NetAction.js`.
+- Extract all DOM manipulation to `UIManager.js`.
+- Extract all phase switching to `PhaseManager.js`.
+- Leave `game.js` purely as the state machine orchestrator.
+- **Risk:** High chance of breaking existing connections or DOM bindings. We must test rigorously.
+
+### Stage 2: Core Foundation
+- Write the graph logic for `Manor.js`.
+- Build the `QTE.js` mini-game engine.
+- *Anticipated Error:* Canvas resizing issues for QTEs on mobile vs desktop. Will need strict ResizeObserver logic.
+
+### Stage 3: The Deep Mechanics
+- Implement `Evidence.js` (the 20% floor logic and shared array distribution to clients).
+- Implement `Roles.js` (the 8 active abilities).
+- *Anticipated Mess-up:* Synching evidence age across 30 clients without overwhelming websocket bandwidth.
+
+### Stage 4: UX & Polish
+- Build Match Chronicle `Chronicle.js` (including the detail decay logic).
+- Implement responsive glassmorphic UI.
+- *Anticipated Error:* Safari/iOS devices lagging heavily with CSS `backdrop-filter: blur()`. Will need performance fallbacks.
+
+---
+
+> This file is for developer eyes only. It tracks the raw truth, every backtrack, and every anticipated disaster. We reference this when we get lost.

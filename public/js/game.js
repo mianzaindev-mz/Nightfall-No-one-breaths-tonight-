@@ -10,6 +10,18 @@ import { generateKillClue, generateKillClues, generateInvestClue, generateSnoopC
 import audio from './audio.js';
 import chat from './chat.js';
 import * as ui from './ui.js';
+import NetAction from './managers/NetAction.js';
+import PhaseManager from './managers/PhaseManager.js';
+import UIManager from './managers/UIManager.js';
+import Manor from './systems/Manor.js';
+import Evidence from './systems/Evidence.js';
+import Accusation from './components/Accusation.js';
+import Abilities from './systems/Abilities.js';
+import Chronicle from './components/Chronicle.js';
+import Difficulty from './systems/Difficulty.js';
+import Moderation from './systems/Moderation.js';
+import Achievements from './systems/Achievements.js';
+import UXEffects from './systems/UXEffects.js';
 
 export default class Game {
   constructor(network, canvasCtrl) {
@@ -114,133 +126,29 @@ export default class Game {
     this.maxLobbySize = 30;
 
     this.stats = JSON.parse(localStorage.getItem('nf_stats') || '{"games":0,"wins":0}');
-    this._setupNetHandlers();
+
+    // ── Season 2 Systems ──
+    this.manor = new Manor();
+    this.evidence = new Evidence(this);
+    this.accusation = new Accusation(this);
+    this.abilities = new Abilities(this);
+    this.chronicle = new Chronicle(this);
+    this.difficulty = new Difficulty(this);
+    this.moderation = new Moderation(this);
+    this.achievements = new Achievements();
+    this.ux = new UXEffects(this);
+    this.killerChatLog = []; // For wiretap ability
+
+    // ── Manager Delegation (Season 2 Architecture) ──
+    this.uiManager = new UIManager(this);
+    this.phaseManager = new PhaseManager(this);
+    this.netAction = new NetAction(this);  // registers all websocket handlers
   }
 
   _pname(pid) { const d = this.charData[pid]; return d ? `${d.persona.icon} ${d.persona.name}` : '???'; }
 
   // ── NETWORK HANDLERS ───────────────────────────────────────
-  _setupNetHandlers() {
-    const n = this.net;
-    n.on('CREATED', d => { this.lobbyCode = d.code; this.isHost = true; this.players = [{ id: this.myId, name: this.myName, avatar: this.myAvatar, alive: true, role: null, disconnected: false, isHost: true }]; this._showLobby(); });
-    n.on('JOINED', d => { this.lobbyCode = d.code; this.isHost = (d.hostId === this.myId); n.roomCode = d.code; n.getPlayers(); this._showLobby(); });
-    n.on('JOIN_FAIL', d => ui.toast(d.reason || 'Failed to join', true));
-    n.on('RECONNECTED', d => { this.lobbyCode = d.code; this.isHost = (d.hostId === this.myId); n.roomCode = d.code; ui.toast('Reconnected!'); n.getPlayers(); });
-
-    n.on('PLAYER_LIST', d => {
-      this.players = d.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar || '👤', alive: p.alive !== undefined ? p.alive : true, role: p.role || null, disconnected: !p.connected, isHost: p.id === d.hostId }));
-      this.isHost = d.hostId === this.myId; this._renderLobby();
-    });
-    n.on('PLAYER_JOINED', d => { if (!this.players.find(p => p.id === d.playerId)) this.players.push({ id: d.playerId, name: d.name, avatar: '👤', alive: true, role: null, disconnected: false }); this._renderLobby(); ui.toast(`${d.name} joined`); });
-    n.on('PLAYER_LEFT', d => { this.players = this.players.filter(p => p.id !== d.playerId); this._renderLobby(); ui.toast(`${d.name} left`); });
-    n.on('PLAYER_DISCONNECTED', d => { const p = this.players.find(x => x.id === d.playerId); if (p) p.disconnected = true; this._renderLobby(); });
-    n.on('PLAYER_RECONNECTED', d => { const p = this.players.find(x => x.id === d.playerId); if (p) p.disconnected = false; this._renderLobby(); });
-    n.on('HOST_CHANGED', d => { this.isHost = (d.newHostId === this.myId); this.players.forEach(p => p.isHost = p.id === d.newHostId); this._renderLobby(); ui.toast(`${d.name} is the new host`); });
-    n.on('PL', d => { d.pl.forEach(u => { let p = this.players.find(x => x.id === u.id); if (p) Object.assign(p, u); else this.players.push({ ...u, disconnected: false }); }); this._renderLobby(); });
-
-    n.on('ROLE', d => {
-      this.round = d.round || 1; this.phase = 'role'; this.myRole = d.role;
-      this.charData = d.charData || {};
-      this.myPersona = this.charData[this.myId]?.persona;
-      this.myCharacter = { pub: this.charData[this.myId]?.pub, hidden: this.charData[this.myId]?.hidden };
-      d.publicPlayers.forEach(u => { let p = this.players.find(x => x.id === u.id); if (p) p.alive = true; });
-      const me = this.players.find(p => p.id === this.myId); if (me) me.role = d.role;
-      this.settings = d.settings || this.settings; this.killCounts = {};
-      this._showRole(d.allies || []);
-    });
-
-    n.on('NIGHT', d => { this.phase = 'night'; this.round = d.round; this._showNight(d.dur); });
-    n.on('GRACE', d => { this._onGrace(d); });
-    n.on('SKIP_VOTE', d => {
-      if (this.isHost) {
-        this.skipVotes.add(d._from);
-        const alive = this.players.filter(p => p.alive && !p.disconnected).length;
-        const needed = Math.ceil(alive * 0.7);
-        this.net.relay({ t: 'SKIP_UPDATE', count: this.skipVotes.size, needed });
-        if (this.skipVotes.size >= needed) this._triggerSkip();
-      }
-    });
-    n.on('SKIP_UPDATE', d => { this._updateSkipUI(d.count, d.needed); });
-    n.on('INVESTIGATE', d => { this._onInvestigate(d); });
-    n.on('DINNER', d => { this._onDinner(d); });
-    n.on('VOTE_UPDATE', d => { this.votes = d.votes || {}; this._renderVotes(); });
-    n.on('VERDICT', d => { this._onVerdict(d); });
-    n.on('GAMEOVER', d => { this._onGameOver(d); });
-    n.on('READY', d => { if (this.isHost) { this.readySet.add(d._from); this._checkReady(); } });
-
-    n.on('KILL_ACTION', d => {
-      if (this.isHost) {
-        // Check for target overlap before recording
-        const existingKillers = Object.entries(this.nightActions).filter(([kid, tid]) => tid === d.targetId && kid !== d._from);
-        if (existingKillers.length > 0) {
-          const targetName = this._pname(d.targetId);
-          const warningText = `⚠ WARNING: Multiple killers targeting ${targetName}! Consider splitting targets.`;
-          // Send warning to all killers
-          this.players.forEach(p => {
-            if (p.role === 'killer' && !p._isBot) {
-              this.net.sendTo(p.id, { t: 'TEAM_CHAT', team: 'killer', name: '⚠ System', text: warningText });
-            }
-          });
-          // Also show to host if killer
-          if (this.myRole === 'killer') chat.addMessage('⚠ System', warningText, 'team-killer', 'killer');
-        }
-        this.nightActions[d._from] = d.targetId;
-        // Support multi-clue per kill
-        if (d.killClues?.length) d.killClues.forEach(c => { if (c.text) this.killClues.push({ text: c.text, accuracyPct: c.accuracyPct, isFalse: c.isFalse, strength: c.strength }); });
-        else if (d.killClue?.text) this.killClues.push({ text: d.killClue.text, accuracyPct: d.killClue.accuracyPct, isFalse: d.killClue.isFalse, strength: d.killClue.strength });
-        this.killCounts[d._from] = (this.killCounts[d._from] || 0) + 1;
-        this._checkNightDone();
-      }
-    });
-    n.on('INVEST_RESULT', d => { if (this.isHost && d.clue) this.investigationClues.push({ playerId: d._from, clue: d.clue, isFalse: d.isFalse || false }); });
-    // Democratic investigation handlers
-    n.on('INVEST_REQUEST', d => { this._onInvestRequest(d); });
-    n.on('INVEST_VOTE', d => { if (this.isHost) this._onInvestVote(d); });
-    n.on('INVEST_DECISION', d => { this._onInvestDecision(d); });
-    n.on('SNOOP_ALERT', d => { if (this.myRole === 'killer') this._showSnoopAlert(d); });
-    // Team chat
-    n.on('TEAM_CHAT', d => {
-      if (this.isHost) {
-        // Relay only to same-team members
-        const team = d.team;
-        this.teamSuspicionCounters[team] = (this.teamSuspicionCounters[team] || 0) + 1;
-        this._checkSuspicionEscalation(team);
-        this.players.forEach(p => {
-          if (p.role === team && p.id !== d._from && !p._isBot) {
-            this.net.sendTo(p.id, { t: 'TEAM_CHAT', team: d.team, name: d.name, text: d.text });
-          }
-        });
-        // Also show to self if host is same team
-        if (this.myRole === team) chat.addMessage(d.name, d.text, `team-${team}`, team);
-      } else {
-        chat.addMessage(d.name, d.text, `team-${d.team}`, d.team);
-      }
-    });
-    n.on('SUSPICION_MSG', d => {
-      chat.addMessage('', d.text, 'system');
-      ui.addLog(d.text, 'ls');
-    });
-    n.on('NEW_EVIDENCE', d => {
-      if (d.evidence) {
-        // Only add if not already in ledger
-        if (!this.evidenceLedger.find(e => e.id === d.evidence.id)) {
-          this.evidenceLedger.push(d.evidence);
-        }
-      }
-    });
-    n.on('DOC_PROTECT', d => { if (this.isHost) this.doctorTarget = d.targetId; });
-    n.on('VOTE', d => { if (this.isHost) { this.votes[d._from] = d.targetId; this.net.relay({ t: 'VOTE_UPDATE', votes: this.votes }); this._checkVoteDone(); } });
-    n.on('CHAT', d => { chat.addMessage(d.persona || d.name, d.text, d.chatType || 'normal'); audio.play('chat'); });
-    n.on('LAST_WORDS', d => { chat.addMessage(d.persona || d.name, d.text, 'last-words'); });
-    n.on('WHISPER', d => { this._onWhisper(d); });
-    n.on('WHISPER_NOTICE', d => { chat.addMessage('', `💬 ${d.senderName} whispered to ${d.receiverName}`, 'system'); });
-    n.on('GHOST_CLUE', d => { chat.addMessage('👻 Ghost', d.text, 'ghost'); ui.addLog(`👻 Ghost clue: "${d.text}"`, 'lc'); audio.play('ghost'); });
-    n.on('SUSPICION_VOTE', d => { if (this.isHost) { if (!this.suspicionVotes[d.targetId]) this.suspicionVotes[d.targetId] = { up: 0, down: 0 }; this.suspicionVotes[d.targetId][d.dir]++; this.net.relay({ t: 'SUSPICION_UPDATE', votes: this.suspicionVotes }); } });
-    n.on('SUSPICION_UPDATE', d => { this.suspicionVotes = d.votes || {}; this._renderSuspicion(); });
-    n.on('NIGHT_EVENT', d => { this.currentNightEvent = d.event; this._showNightEvent(d.event); });
-    n.on('KICKED', d => { if (d.targetId === this.myId) { ui.toast('You were kicked', true); ui.show('s-land'); this.phase = 'lobby'; this.players = []; } });
-    n.on('SETTINGS', d => { this.settings = d.settings; });
-  }
+  // Moved to managers/NetAction.js — registered automatically in constructor
 
   // ── LOBBY ──────────────────────────────────────────────────
   createLobby(name, avatar) { this.myName = name; this.myAvatar = avatar; this.net.createRoom(this.myId, name); }
@@ -250,27 +158,7 @@ export default class Game {
   kickPlayer(id) { if (!this.isHost) return; this.net.relay({ t: 'KICKED', targetId: id }); this.players = this.players.filter(p => p.id !== id); this._renderLobby(); }
 
   // ── HOST START ─────────────────────────────────────────────
-  hostStart() {
-    if (!this.isHost || this.players.length < 4) return;
-    const roleMap = assignRoles(this.players, this.settings);
-    roleMap.forEach(r => { const p = this.players.find(x => x.id === r.id); if (p) { p.role = r.role; p.alive = true; } });
-    const { personas, characters } = assignCharacters(this.players.map(p => p.id));
-    this._hostPersonas = personas; this._hostCharacters = characters;
-    this.charData = {};
-    personas.forEach((persona, id) => { this.charData[id] = { persona, pub: characters.get(id).pub }; });
-    this.charData[this.myId].hidden = characters.get(this.myId).hidden;
-    this.myPersona = personas.get(this.myId);
-    this.myCharacter = { pub: characters.get(this.myId).pub, hidden: characters.get(this.myId).hidden };
-    this.phase = 'role'; this.round = 1; this.readySet = new Set(); this.jesterWinner = null; this.killCounts = {};
-    const publicPlayers = this.players.map(p => ({ id: p.id }));
-    this.players.forEach(p => {
-      const allies = p.role === 'killer' ? this.players.filter(x => x.role === 'killer' && x.id !== p.id).map(x => personas.get(x.id).name) : [];
-      const cd = {};
-      personas.forEach((persona, id) => { cd[id] = { persona, pub: characters.get(id).pub }; if (id === p.id) cd[id].hidden = characters.get(id).hidden; });
-      if (p.id === this.myId) { this.myRole = p.role; this._showRole(allies); }
-      else this.net.relay({ t: 'ROLE', role: p.role, allies, publicPlayers, round: this.round, settings: this.settings, charData: cd }, p.id);
-    });
-  }
+  hostStart() { this.phaseManager.hostStart(); }
 
   _showRole(allies) {
     ui.show('s-role'); ui.renderRole(this.myRole, allies, this.myPersona, this.myCharacter); audio.play(this.myRole === 'killer' ? 'bad' : 'good'); ui.hideRoleReminder();
@@ -331,14 +219,7 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   // GRACE PERIOD — Pre-game socializing (15s)
   // ══════════════════════════════════════════════════════════
-  _beginGrace() {
-    if (!this.isHost) return;
-    this.skipVotes = new Set(); this.mySkipVoted = false;
-    const dur = 60000;
-    const payload = { t: 'GRACE', dur, round: this.round, pa: this.players.map(p => ({ id: p.id })) };
-    this.net.relay(payload);
-    this._onGrace(payload);
-  }
+  _beginGrace() { this.phaseManager.beginGrace(); }
 
   _onGrace(d) {
     this.phase = 'grace';
@@ -427,30 +308,7 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   // PHASE 1: NIGHT (Lights Out — Killer Strikes)
   // ══════════════════════════════════════════════════════════
-  _beginNight() {
-    if (!this.isHost) return;
-    this.phase = 'night'; this.nightActions = {}; this.doctorTarget = null;
-    this.killClues = []; this.investigationClues = [];
-    this.readySet = new Set(); this.savedId = null;
-    this.suspicionVotes = {}; this.mySuspicionVotes = new Set();
-    this.whispersUsed = 0; this.ghostClueUsed = false;
-    // Night event
-    this.currentNightEvent = this.settings.nightEvents !== false ? this._rollNightEvent() : null;
-    const dur = this.settings.nightTime * 1000;
-    const nightPayload = { t: 'NIGHT', round: this.round, dur };
-    if (this.currentNightEvent) {
-      nightPayload.event = this.currentNightEvent;
-      this.net.relay({ t: 'NIGHT_EVENT', event: this.currentNightEvent });
-    }
-    this.net.relay(nightPayload);
-    this._showNight(dur);
-    clearTimeout(this.nightTimeout);
-    this.nightTimeout = setTimeout(() => { if (this.phase === 'night') this._resolveNight(); }, dur);
-    // Init round recap
-    this.roundRecap[this.round] = { events: [], evidence: [], votes: {} };
-    if (this.currentNightEvent) this.roundRecap[this.round].events.push(`🌩 Night Event: ${this.currentNightEvent.name}`);
-    setTimeout(() => this._botNightActions(), 1000);
-  }
+  _beginNight() { this.phaseManager.beginNight(); }
 
   _showNight(dur) {
     this.phase = 'night';
@@ -475,15 +333,96 @@ export default class Game {
         ui.addLog(`☠ Your fellow killer${killerIds.length > 1 ? 's' : ''}: ${allyNames}`, 'lk');
       }
       this._showKillerNight(nonKillerAlive);
+      // Night-phase abilities (Disguise, Evidence Destroy)
+      const nAct = document.getElementById('nAct');
+      if (nAct) this._renderAbilityBar(nAct, 'night');
     }
-    else if (this.myRole === 'doctor') this._showDoctorNight(alive);
+    else if (this.myRole === 'doctor') {
+      this._showDoctorNight(alive);
+      // Night-phase abilities (Patrol)
+      const nAct = document.getElementById('nAct');
+      if (nAct) this._renderAbilityBar(nAct, 'night');
+    }
     else {
-      // Civilians/Detective wait during night — investigation comes AFTER
+      // Civilians/Detective: Night activities (Listen/Barricade/Pray) or passive wait
       const area = document.getElementById('nAct');
-      if (area) area.innerHTML =
-        `<div class="muted tc" style="font-size:1rem;line-height:1.8">💤 The lights are out...<br>` +
-        `<span style="color:rgba(255,255,255,.15);font-size:.85rem">Wait for the lights to come back on to investigate.</span></div>` +
-        `<div style="font-size:3rem;text-align:center;margin-top:16px;animation:pu 2.5s infinite">🕯</div>`;
+      const myRoom = this.manor?.getRoom(this.playerLocations?.[this.myId]);
+      const roomInfo = myRoom ? `<div style="color:var(--gold);font-size:.75rem;margin-bottom:8px;font-family:var(--font-display);letter-spacing:.1em">${myRoom.icon} ${myRoom.name}</div><div class="room-ambiance">${myRoom.ambiance || ''}</div>` : '';
+
+      // Charge tracking: 2 per match, 1 per night
+      if (typeof this.nightCharges === 'undefined') this.nightCharges = 2;
+      if (typeof this.nightChargeUsedThisRound === 'undefined') this.nightChargeUsedThisRound = false;
+      this.nightChargeUsedThisRound = false; // Reset each night
+      const canAct = this.nightCharges > 0 && !this.nightChargeUsedThisRound && this.myRole !== 'detective';
+
+      if (area) {
+        let actionsHtml = '';
+        if (canAct) {
+          actionsHtml = `<div class="night-actions-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+            <button class="btn btn-sm btn-out night-act-btn" data-act="listen" style="padding:10px 4px">
+              <div style="font-size:1.5rem">👂</div>
+              <div style="font-size:.65rem;margin-top:2px">LISTEN</div>
+              <div style="font-size:.55rem;color:var(--pale-dim)">Hear nearby</div>
+            </button>
+            <button class="btn btn-sm btn-out night-act-btn" data-act="barricade" style="padding:10px 4px">
+              <div style="font-size:1.5rem">🚪</div>
+              <div style="font-size:.65rem;margin-top:2px">BARRICADE</div>
+              <div style="font-size:.55rem;color:var(--pale-dim)">Block door</div>
+            </button>
+            <button class="btn btn-sm btn-out night-act-btn" data-act="pray" style="padding:10px 4px">
+              <div style="font-size:1.5rem">🙏</div>
+              <div style="font-size:.65rem;margin-top:2px">PRAY</div>
+              <div style="font-size:.55rem;color:var(--pale-dim)">Cryptic hint</div>
+            </button>
+          </div>
+          <div class="muted tc" style="font-size:.6rem;margin-top:6px">🌙 Night Actions: ${this.nightCharges}/2 remaining</div>`;
+        } else {
+          actionsHtml = `<div class="muted tc" style="font-size:.85rem;line-height:1.8;margin-top:8px">💤 The lights are out...<br>` +
+            `<span style="color:rgba(255,255,255,.15);font-size:.75rem">${this.nightCharges <= 0 ? 'No night actions remaining.' : 'Wait for the lights to come back on.'}</span></div>` +
+            `<div style="font-size:3rem;text-align:center;margin-top:12px;animation:pu 2.5s infinite">🕯</div>`;
+        }
+        area.innerHTML = roomInfo + actionsHtml;
+
+        // Wire activity buttons
+        area.querySelectorAll('.night-act-btn').forEach(btn => {
+          btn.onclick = async () => {
+            if (this.nightChargeUsedThisRound) return;
+            this.nightChargeUsedThisRound = true;
+            this.nightCharges--;
+            const act = btn.dataset.act;
+            area.querySelectorAll('.night-act-btn').forEach(b => { b.disabled = true; b.style.opacity = b === btn ? '1' : '.2'; });
+
+            // QTE container
+            const qteDiv = document.createElement('div');
+            qteDiv.style.cssText = 'margin-top:12px';
+            area.appendChild(qteDiv);
+
+            const score = await runQTE(qteDiv, 1, 'investigate');
+
+            // Process result based on activity type
+            let resultText = '';
+            if (act === 'listen') {
+              resultText = this._processListen(score);
+            } else if (act === 'barricade') {
+              resultText = this._processBarricade(score);
+            } else if (act === 'pray') {
+              resultText = this._processPray(score);
+            }
+
+            // Store result for morning announcement
+            if (!this.pendingNightResults) this.pendingNightResults = [];
+            this.pendingNightResults.push({ act, text: resultText });
+
+            // Show result
+            area.innerHTML = roomInfo +
+              `<div style="text-align:center;margin-top:16px">
+                <div style="font-size:1.2rem;margin-bottom:8px">${act === 'listen' ? '👂' : act === 'barricade' ? '🚪' : '🙏'}</div>
+                <div style="color:var(--gold);font-size:.8rem;line-height:1.5">${resultText}</div>
+                <div class="muted" style="font-size:.6rem;margin-top:8px">🌙 Night Actions: ${this.nightCharges}/2 remaining</div>
+              </div>`;
+          };
+        });
+      }
     }
   }
 
@@ -506,7 +445,9 @@ export default class Game {
         const killerChar = this.myCharacter;
         // Pass all characters for potential false evidence
         const allChars = this._hostCharacters || new Map();
-        const killClues = generateKillClues(killerChar, score, myKills, allChars, this.myId);
+        // B4: Get room data for location-specific kill flavor
+        const victimRoom = this.manor?.getRoom(this.playerLocations?.[tid]);
+        const killClues = generateKillClues(killerChar, score, myKills, allChars, this.myId, victimRoom);
         // Kill confirmation + perfect kill feedback
         if (killClues.length === 0) {
           ui.toast('☠ Clean kill — no trace left behind.', false);
@@ -542,49 +483,204 @@ export default class Game {
     };
   }
 
-  _checkNightDone() {
-    const killers = this.players.filter(p => p.alive && p.role === 'killer');
-    if (killers.every(k => this.nightActions[k.id])) { clearTimeout(this.nightTimeout); setTimeout(() => this._resolveNight(), 1500); }
+  _checkNightDone() { this.phaseManager.checkNightDone(); }
+
+  // ── Civilian Night Activity Processors ────────────────────
+  _processListen(score) {
+    const myRoomId = this.playerLocations?.[this.myId];
+    if (!myRoomId || !this.manor) return '🔇 Silence surrounds you.';
+    const soundRange = this.manor.getSoundRange(myRoomId);
+    // Check if any killer targeted someone in an adjacent room
+    const killerTargets = Object.values(this.nightActions || {});
+    let heard = null;
+    for (const targetId of killerTargets) {
+      const targetRoom = this.playerLocations?.[targetId];
+      if (targetRoom && soundRange.includes(targetRoom)) {
+        const roomData = this.manor.getRoom(targetRoom);
+        heard = roomData;
+        break;
+      }
+    }
+    if (score >= 0.7 && heard) {
+      return `🔊 You heard a violent struggle from the ${heard.name}!`;
+    } else if (score >= 0.4 && heard) {
+      return '🔊 You heard a faint disturbance nearby...';
+    } else if (score < 0.4 && heard) {
+      return '🫨 You shifted and the floorboard creaked. Something happened, but you couldn\'t hear clearly.';
+    }
+    return '🔇 The night was silent around you.';
   }
 
-  _resolveNight() {
-    if (!this.isHost) return;
-    // Multiple killers = multiple kills (each killer targets independently)
-    const killedIds = []; let savedIds = [];
-    const killerTargets = {}; // deduplicate: each unique target
-    Object.entries(this.nightActions).forEach(([killerId, targetId]) => {
-      killerTargets[targetId] = (killerTargets[targetId] || []);
-      killerTargets[targetId].push(killerId);
-    });
-    Object.entries(killerTargets).forEach(([targetId, killerIds]) => {
-      const vic = this.players.find(p => p.id === targetId);
-      if (vic && vic.alive) {
-        if (this.doctorTarget === targetId) {
-          savedIds.push(targetId);
-        } else {
-          vic.alive = false;
-          killedIds.push(targetId);
+  _processBarricade(score) {
+    // QTE determines barricade strength
+    let blockChance, msg;
+    if (score >= 0.8) {
+      blockChance = 0.4;
+      msg = '🚪 The door holds firm. 40% block chance tonight.';
+    } else if (score >= 0.5) {
+      blockChance = 0.3;
+      msg = '🚪 The barricade is up. 30% block chance.';
+    } else {
+      blockChance = 0.15;
+      msg = '🚪 The barricade is weak. Only 15% block chance.';
+    }
+    this.myBarricadeChance = blockChance;
+    // Chronicle record
+    const myRoom = this.manor?.getRoom(this.playerLocations?.[this.myId]);
+    const floor = myRoom ? this.manor.getFloorInfo(this.playerLocations[this.myId])?.name : 'unknown floor';
+    this.chronicle?.record?.('barricade', { floor });
+    return msg;
+  }
+
+  _processPray(score) {
+    // Find killer(s) and get one of their public traits
+    const killers = this.players.filter(p => p.alive && p.role === 'killer');
+    if (!killers.length) return '🙏 The spirits are silent.';
+    const killer = killers[Math.floor(Math.random() * killers.length)];
+    const killerChar = this.charData?.[killer.id]?.persona;
+    if (!killerChar) return '🙏 A cold wind is your only answer.';
+
+    // Get public traits from the character
+    const traits = [];
+    if (killerChar.skinTone) traits.push(`skin appears ${killerChar.skinTone}`);
+    if (killerChar.hairStyle) traits.push(`hair is ${killerChar.hairStyle}`);
+    if (killerChar.accessories?.length) traits.push(`wears ${killerChar.accessories[0]}`);
+    if (killerChar.clothing) traits.push(`is dressed in ${killerChar.clothing}`);
+    if (killerChar.icon) traits.push(`their presence feels like ${killerChar.icon}`);
+
+    if (!traits.length) return '🙏 The spirits whisper something unintelligible...';
+
+    const trait = traits[Math.floor(Math.random() * traits.length)];
+
+    // Accuracy: QTE-dependent (50-80%)
+    const isAccurate = Math.random() < (score >= 0.8 ? 0.8 : score >= 0.5 ? 0.7 : 0.5);
+
+    if (isAccurate) {
+      const templates = [
+        `The spirits whisper: the darkness's ${trait}.`,
+        `A chill reveals: the killer's ${trait}.`,
+        `The candle flickers toward someone whose ${trait}.`
+      ];
+      return '🙏 ' + templates[Math.floor(Math.random() * templates.length)];
+    } else {
+      // Misleading — pick a random non-killer's trait
+      const innocents = this.players.filter(p => p.alive && p.role !== 'killer');
+      if (innocents.length) {
+        const decoy = innocents[Math.floor(Math.random() * innocents.length)];
+        const decoyChar = this.charData?.[decoy.id]?.persona;
+        if (decoyChar) {
+          const decoyTraits = [];
+          if (decoyChar.skinTone) decoyTraits.push(`skin appears ${decoyChar.skinTone}`);
+          if (decoyChar.hairStyle) decoyTraits.push(`hair is ${decoyChar.hairStyle}`);
+          if (decoyChar.icon) decoyTraits.push(`presence feels like ${decoyChar.icon}`);
+          if (decoyTraits.length) {
+            const dt = decoyTraits[Math.floor(Math.random() * decoyTraits.length)];
+            return `🙏 The spirits lie: the killer's ${dt}.`;
+          }
         }
       }
-    });
-    this.killedIds = killedIds; this.savedIds = savedIds;
-    // Compat: keep single-target fields for recap
-    this.killedId = killedIds[0] || null; this.savedId = savedIds[0] || null;
-    // Check if detective was killed
-    killedIds.forEach(kid => {
-      const killedPlayer = this.players.find(p => p.id === kid);
-      if (killedPlayer && killedPlayer.role === 'detective') this.detectiveDead = true;
-    });
-    // Transition to INVESTIGATION phase (lights on)
-    const investDur = (this.settings.investTime || 40) * 1000;
-    // Add kill clues to evidence ledger as UNVERIFIED
-    this.killClues.forEach(c => {
-      this.evidenceLedger.push({ id: 'ev-' + Math.random().toString(36).slice(2,8), text: c.text, isFalse: c.isFalse, status: 'unverified', accuracyPct: null, verdictText: null, source: 'crime-scene', round: this.round, strength: c.strength || 'medium' });
-    });
-    const payload = { t: 'INVESTIGATE', round: this.round, killedIds, savedIds, killedId: killedIds[0] || null, savedId: savedIds[0] || null, detectiveDead: this.detectiveDead, evidence: this.evidenceLedger.filter(e => e.round === this.round && e.source === 'crime-scene').map(e => ({ id: e.id, text: e.text, strength: e.strength })), dur: investDur, pa: this.players.map(p => ({ id: p.id, alive: p.alive })) };
-    this.net.relay(payload);
-    this._onInvestigate(payload);
+      return '🙏 The spirits are silent... or lying.';
+    }
   }
+  // ── Season 2: Ability Bar ─────────────────────────────────
+  _renderAbilityBar(container, currentPhase) {
+    if (!this.abilities) return;
+    const abilities = this.abilities.getAvailableAbilities(this.myId)
+      .filter(a => a.phase === currentPhase);
+    if (!abilities.length) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'ability-bar';
+    bar.innerHTML = `<div class="ability-bar-label">⚡ ABILITIES</div><div class="ability-bar-btns">${abilities.map(a => {
+      const dis = !a.canUse ? 'disabled' : '';
+      const chargeText = a.maxUses < 10 ? `${a.charges}/${a.maxUses}` : '';
+      return `<button class="ability-btn ${dis ? 'ability-disabled' : ''}" data-ability="${a.id}" ${dis} title="${a.desc}">
+        <span class="ability-icon">${a.icon}</span>
+        <span class="ability-name">${a.name}</span>
+        ${chargeText ? `<span class="ability-charges">${chargeText}</span>` : ''}
+      </button>`;
+    }).join('')}</div>`;
+    container.prepend(bar);
+
+    // Wire ability buttons
+    bar.querySelectorAll('.ability-btn:not([disabled])').forEach(btn => {
+      btn.onclick = async () => {
+        const abilityId = btn.dataset.ability;
+        const result = this.abilities.useAbility(this.myId, abilityId);
+        if (!result.allowed) { ui.addLog(`❌ ${result.reason}`, 'ls'); return; }
+        btn.disabled = true;
+        btn.classList.add('ability-disabled');
+        const def = result.def;
+        // Update charge display
+        const chargeEl = btn.querySelector('.ability-charges');
+        if (chargeEl) chargeEl.textContent = `${this.abilities.getCharges(this.myId, abilityId)}/${def.maxUses}`;
+        // Show ability toast confirmation
+        const toast = document.createElement('div');
+        toast.className = 'ability-toast';
+        toast.textContent = `${def.icon} ${def.name} activated!`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+
+        // Execute ability based on type
+        if (abilityId === 'wiretap') {
+          const r = this.abilities.getWiretapMessage();
+          ui.addLog(r.text, r.success ? 'ld' : 'ls');
+        } else if (abilityId === 'cold_case') {
+          const targets = this.abilities.getColdCaseTargets();
+          if (targets.length === 0) { ui.addLog('🧩 No decayed evidence to restore.', 'ls'); return; }
+          const qteDiv = document.createElement('div');
+          qteDiv.style.cssText = 'margin:8px 0';
+          container.appendChild(qteDiv);
+          const score = await runQTE(qteDiv, 2, 'jigsaw');
+          const r = this.abilities.restoreEvidence(targets[0].id, score >= 0.5);
+          ui.addLog(r.text, r.success ? 'ld' : 'ls');
+          qteDiv.remove();
+        } else if (abilityId === 'autopsy') {
+          const targets = this.abilities.getAutopsyTargets();
+          if (targets.length === 0) { ui.addLog('🔬 No bodies to examine.', 'ls'); return; }
+          const qteDiv = document.createElement('div');
+          qteDiv.style.cssText = 'margin:8px 0';
+          container.appendChild(qteDiv);
+          const score = await runQTE(qteDiv, 2, 'slider');
+          const r = this.abilities.performAutopsy(targets[0].id, score);
+          ui.addLog(r.text, r.success ? 'ld' : 'ls');
+          // Store discovered traits in dossier
+          if (r.traits?.length) {
+            if (!this.dossier) this.dossier = {};
+            if (!this.dossier[targets[0].id]) this.dossier[targets[0].id] = [];
+            r.traits.forEach(t => this.dossier[targets[0].id].push(t));
+          }
+          qteDiv.remove();
+        } else if (abilityId === 'town_watch') {
+          const qteDiv = document.createElement('div');
+          qteDiv.style.cssText = 'margin:8px 0';
+          container.appendChild(qteDiv);
+          const score = await runQTE(qteDiv, 1, 'spotlight');
+          const r = this.abilities.performTownWatch(this.myId, score);
+          ui.addLog(r.text, r.success ? 'ld' : 'ls');
+          qteDiv.remove();
+        } else if (abilityId === 'disguise') {
+          ui.addLog('🎭 Disguise activated. You will appear as Civilian if investigated tonight.', 'lk');
+        } else if (abilityId === 'crocodile_tears') {
+          const r = this.abilities.activateCrocodileTears(this.myId);
+          ui.addLog(r.text, 'ls');
+        } else if (abilityId === 'evidence_destroy') {
+          const targets = this.abilities.getDestroyTargets();
+          if (targets.length === 0) { ui.addLog('🔥 No evidence to destroy.', 'ls'); return; }
+          const qteDiv = document.createElement('div');
+          qteDiv.style.cssText = 'margin:8px 0';
+          container.appendChild(qteDiv);
+          const score = await runQTE(qteDiv, 2, 'burn');
+          const r = this.abilities.destroyEvidence(targets[0].id, score >= 0.6);
+          if (r.success) ui.addLog(`🔥 Evidence destroyed: ${r.destroyed}`, 'lk');
+          else { ui.addLog(`🔥 Failed to destroy evidence!`, 'lk'); if (r.extraClue) ui.addLog(r.extraClue, 'ls'); }
+          qteDiv.remove();
+        }
+      };
+    });
+  }
+
+  _resolveNight() { this.phaseManager.resolveNight(); }
 
   // ══════════════════════════════════════════════════════════
   // PHASE 2: INVESTIGATION (Limits + Verification)
@@ -679,6 +775,8 @@ export default class Game {
     // Investigation UI with LIMITS
     const logArea = document.getElementById('dLog');
     if (me && me.alive && logArea && !me._isBot) {
+      // Season 2: Ability bar for investigate-phase abilities
+      this._renderAbilityBar(logArea, 'investigate');
       this._renderInvestigationUI(logArea);
     }
 
@@ -723,7 +821,7 @@ export default class Game {
     const maxActions = this._getMyMaxActions();
     const remaining = maxActions - this.myActionsUsed;
     const canAct = remaining > 0 && this._canCivilianAct();
-    const alive = this.players.filter(p => p.alive && p.id !== this.myId && !p._isBot);
+    const alive = this.players.filter(p => p.alive && p.id !== this.myId);
     const unverified = this.evidenceLedger.filter(e => e.status === 'unverified');
 
     // Remove old
@@ -737,7 +835,13 @@ export default class Game {
     const acColor = isDet ? 'var(--det-bright)' : 'var(--gold)';
     const roleLabel = isDet ? '🔍 Detective' : '🔎 Civilian';
 
-    let html = `<div style="color:${acColor};font-family:var(--font-display);font-size:.9rem;margin:10px 0 6px">${roleLabel} — ${remaining} action${remaining > 1 ? 's' : ''} remaining</div>`;
+    // Room info display
+    const myRoom = this.manor?.getRoom(this.playerLocations?.[this.myId]);
+    let html = myRoom ? `<div style="border:1px solid rgba(201,168,76,.15);border-radius:6px;padding:6px 10px;margin-bottom:8px;background:rgba(201,168,76,.03)">
+      <div style="font-family:var(--font-display);font-size:.7rem;letter-spacing:.1em;color:var(--gold)">${myRoom.name}</div>
+      <div class="room-ambiance">${myRoom.ambiance || ''}</div>
+    </div>` : '';
+    html += `<div style="color:${acColor};font-family:var(--font-display);font-size:.9rem;margin:10px 0 6px">${roleLabel} — ${remaining} action${remaining > 1 ? 's' : ''} remaining</div>`;
 
     // Civilians need group permission — Detective/Killer investigate directly
     if (isCivilian) {
@@ -1123,15 +1227,7 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   // PHASE 3: DINNER (Discussion + Voting)
   // ══════════════════════════════════════════════════════════
-  _beginDinner() {
-    if (!this.isHost) return;
-    this.phase = 'dinner';
-    this.votes = {};
-    const dur = (this.settings.dayTime || 60) * 1000;
-    const payload = { t: 'DINNER', round: this.round, dur, investigationClues: this.investigationClues, pa: this.players.map(p => ({ id: p.id, alive: p.alive })) };
-    this.net.relay(payload);
-    this._onDinner(payload);
-  }
+  _beginDinner() { this.phaseManager.beginDinner(); }
 
   _onDinner(d) {
     d.pa.forEach(u => { const p = this.players.find(x => x.id === u.id); if (p) p.alive = u.alive; });
@@ -1242,7 +1338,15 @@ export default class Game {
   _renderVotes() {
     const me = this.players.find(p => p.id === this.myId);
     const isDead = me && !me.alive;
-    let dp = this.players.map(p => ({ ...p, name: this._pname(p.id), avatar: this.charData[p.id]?.persona?.icon || '❓' }));
+    let dp = this.players.map(p => {
+      const accused = this.accusation?.isAccused?.(p.id);
+      return {
+        ...p,
+        name: this._pname(p.id) + (accused ? ' 🔴' : ''),
+        avatar: this.charData[p.id]?.persona?.icon || '❓',
+        isAccused: !!accused,
+      };
+    });
     // If revote, only show tied candidates
     if (this._revoteTiedIds && this._revoteTiedIds.length) {
       dp = dp.filter(p => this._revoteTiedIds.includes(p.id));
@@ -1280,56 +1384,11 @@ export default class Game {
     ui.toast('You abstained from voting');
   }
 
-  _checkVoteDone() { if (Object.keys(this.votes).length >= this.players.filter(p => p.alive).length) { clearInterval(this.dayInterval); this._closeVote(); } }
+  _checkVoteDone() { if (Object.keys(this.votes).length >= this.players.filter(p => p.alive).length) { clearInterval(this.dayInterval); this.phaseManager.closeVote(); } }
 
-  _closeVote() {
-    if (!this.isHost) return;
-    // Filter out SKIP votes from tally
-    const tally = {};
-    Object.entries(this.votes).forEach(([voterId, v]) => { if (v !== 'SKIP') tally[v] = (tally[v] || 0) + 1; });
-    const skipCount = Object.values(this.votes).filter(v => v === 'SKIP').length;
-    const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-    let exId = null;
-    // Check for tie
-    if (sorted.length >= 2 && sorted[0][1] === sorted[1][1] && !this._isRevote) {
-      // TIE — trigger focused revote
-      const tiedIds = sorted.filter(([_, c]) => c === sorted[0][1]).map(([id]) => id);
-      this._isRevote = true;
-      const payload = { t: 'DINNER', round: this.round, revote: true, tiedIds, tiedNames: tiedIds.map(id => this._pname(id)), dur: 15000, pa: this.players.map(p => ({ id: p.id, alive: p.alive })) };
-      this.votes = {};
-      this.net.relay(payload);
-      this._onDinner(payload);
-      return;
-    }
-    this._isRevote = false;
-    if (sorted.length && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) exId = sorted[0][0];
-    let isJester = false;
-    if (exId) { const p = this.players.find(x => x.id === exId); if (p) { if (p.role === 'jester') { isJester = true; this.jesterWinner = this._pname(exId); } p.alive = false; } }
-    // Track voting history
-    this.voteHistory.push({ round: this.round, votes: { ...this.votes }, tally: { ...tally }, exId });
-    // Track recap
-    if (this.roundRecap[this.round]) {
-      this.roundRecap[this.round].votes = { ...this.votes };
-      if (exId) { const ep = this.players.find(x => x.id === exId); this.roundRecap[this.round].events.push(`⚔ ${this._pname(exId)} was executed. Role: ${ep?.role || 'unknown'}`); }
-    }
-    const w = this._checkWin();
-    if (w) {
-      const payload = { t: 'GAMEOVER', winner: w, players: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: p.alive, role: p.role })), tally, exId, isJester, jesterWinner: this.jesterWinner, charData: this.charData, voteHistory: this.voteHistory };
-      this.net.relay(payload); this._onGameOver(payload);
-    } else {
-      const payload = { t: 'VERDICT', tally, exId, isJester, skipCount, pa: this.players.map(p => ({ id: p.id, alive: p.alive, role: p.role })), jesterWinner: this.jesterWinner, voteHistory: this.voteHistory, recap: this.roundRecap[this.round] };
-      this.net.relay(payload); this._onVerdict(payload);
-    }
-  }
+  _closeVote() { this.phaseManager.closeVote(); }
 
-  _checkWin() {
-    const ak = this.players.filter(p => p.alive && p.role === 'killer');
-    const ac = this.players.filter(p => p.alive && p.role !== 'killer' && p.role !== 'jester');
-    const aj = this.players.filter(p => p.alive && p.role === 'jester');
-    if (!ak.length) return 'civilians';
-    if (ak.length >= ac.length + aj.length) return 'killers';
-    return null;
-  }
+  _checkWin() { return this.phaseManager.checkWin(); }
 
   // ══════════════════════════════════════════════════════════
   // PHASE 4: VERDICT
@@ -1393,7 +1452,7 @@ export default class Game {
     this.round++;
     let vc = 8;
     document.getElementById('vcT').textContent = vc;
-    const t = setInterval(() => { vc--; document.getElementById('vcT').textContent = vc; if (vc <= 0) { clearInterval(t); if (this.isHost) this._beginNight(); } }, 1000);
+    const t = setInterval(() => { vc--; document.getElementById('vcT').textContent = vc; if (vc <= 0) { clearInterval(t); if (this.isHost) this.phaseManager.beginNight(); } }, 1000);
   }
 
   _onGameOver(d) {
@@ -1418,7 +1477,7 @@ export default class Game {
     this.myRole = null; this.selVote = null; this.voted = false; this.jesterWinner = null;
     this.lastDoctorSelf = false; this.charData = {}; this.myPersona = null; this.myCharacter = null;
     this._hostCharacters = null; this._hostPersonas = null; this.killCounts = {}; this.bots = [];
-    this.evidenceLedger = []; this.myActionsUsed = 0; this.civilianActionsUsed = 0;
+    this.evidenceLedger = []; this.myActionsUsed = 0; this.civilianActionsUsed = 0; this.nightCharges = 2; this.pendingNightResults = []; this.myBarricadeChance = 0; this.dossier = {};
     this.voteHistory = []; this.whispersUsed = 0; this.ghostClueUsed = false;
     this.currentNightEvent = null; this.suspicionVotes = {}; this.mySuspicionVotes = new Set();
     this.roundRecap = {}; this.lastStandActive = false;
@@ -1467,72 +1526,12 @@ export default class Game {
   // ══════════════════════════════════════════════════════════
   // DRAMATIC DEATH REVEAL
   // ══════════════════════════════════════════════════════════
-  _showDramaticDeath(player, isJester) {
-    const roleConfigs = {
-      killer: { icon: '☠', title: 'THE DARKNESS RETREATS', subtitle: 'The killer has been unmasked.', color: '#e53935', glow: 'rgba(229,57,53,.3)', message: `${player._displayName || player.name} was the KILLER all along!` },
-      detective: { icon: '🔍', title: 'THE EYES GO DARK', subtitle: 'The detective has fallen.', color: '#42a5f5', glow: 'rgba(66,165,245,.3)', message: `${player._displayName || player.name} was the DETECTIVE — who will seek the truth now?` },
-      doctor: { icon: '💊', title: 'NO ONE CAN SAVE THEM NOW', subtitle: 'The doctor is gone.', color: '#66bb6a', glow: 'rgba(102,187,106,.3)', message: `${player._displayName || player.name} was the DOCTOR — the killer roams free.` },
-      jester: { icon: '🃏', title: 'CHAOS WINS', subtitle: 'The fool laughs last.', color: '#ab47bc', glow: 'rgba(171,71,188,.3)', message: `${player._displayName || player.name} was the JESTER — and you fell for it!` },
-    };
-    const config = roleConfigs[player.role] || { icon: '💀', title: 'A SOUL DEPARTS', subtitle: 'An innocent was lost.', color: '#f9a825', glow: 'rgba(249,168,37,.3)', message: `${player._displayName || player.name} was innocent.` };
-
-    const overlay = document.createElement('div');
-    overlay.className = 'dramatic-death-overlay';
-    overlay.innerHTML = `
-      <div class="dramatic-death-card" style="--dd-color:${config.color};--dd-glow:${config.glow}">
-        <div class="dd-icon">${config.icon}</div>
-        <div class="dd-title">${config.title}</div>
-        <div class="dd-subtitle">${config.subtitle}</div>
-        <div class="dd-divider"></div>
-        <div class="dd-message">${config.message}</div>
-        <div class="dd-role">${player.role.toUpperCase()}</div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    // Auto dismiss after 4s
-    setTimeout(() => {
-      overlay.classList.add('dd-fadeout');
-      setTimeout(() => overlay.remove(), 600);
-    }, 4000);
-    // Click to dismiss early
-    overlay.onclick = () => { overlay.classList.add('dd-fadeout'); setTimeout(() => overlay.remove(), 600); };
-  }
+  _showDramaticDeath(player, isJester) { this.uiManager.showDramaticDeath(player, isJester); }
 
   // ══════════════════════════════════════════════════════════
   // MOOD-BASED NOTIFICATIONS
   // ══════════════════════════════════════════════════════════
-  _showMoodNotification(score, type, accuracy = null) {
-    const msgs = {
-      investigate: {
-        high:   ['🌟 Breakthrough! Strong evidence found!', '🔍 Sharp eyes! Clear evidence uncovered!', '✨ Excellent work! This could change everything!'],
-        medium: ['🔎 Found something... it may prove useful.', '📝 Evidence gathered — every clue matters.', '🔍 Moderate findings. Keep searching.'],
-        low:    ['😞 Barely anything useful was found...', '😔 A frustrating search... very little to go on.', '💨 Almost nothing... the trail has gone cold.'],
-      },
-      'investigate-fail': {
-        high:  ['😐 Nothing substantial despite your best effort.'],
-        medium: ['😕 The search yielded nothing... try a different angle.'],
-        low:   ['😞 A complete dead end. Nothing was found.', '💀 Silence. The clues elude you entirely.'],
-      },
-      verify: {
-        high:   ['🔬 Crystal clear analysis! Evidence assessed with confidence!', '✅ Forensic precision! The truth becomes clearer!'],
-        medium: ['🔬 Partial analysis... some clarity, but doubts remain.', '🧪 The forensics were inconclusive in places.'],
-        low:    ['😰 The analysis was muddled... hard to trust these results.', '🔴 Uncertain findings... the evidence remains a mystery.'],
-      },
-    };
-
-    const tier = score >= 0.7 ? 'high' : score >= 0.4 ? 'medium' : 'low';
-    const pool = msgs[type]?.[tier] || msgs.investigate.medium;
-    const msg = pool[Math.floor(Math.random() * pool.length)];
-    const moodClass = tier === 'high' ? 'mood-celebratory' : tier === 'medium' ? 'mood-neutral' : 'mood-somber';
-
-    // Create floating notification
-    const notif = document.createElement('div');
-    notif.className = `mood-notif ${moodClass}`;
-    notif.innerHTML = `<div class="mood-text">${msg}</div>`;
-    if (accuracy !== null) notif.innerHTML += `<div class="mood-detail">Analysis accuracy: ${accuracy}%</div>`;
-    document.body.appendChild(notif);
-    setTimeout(() => { notif.classList.add('mood-fadeout'); setTimeout(() => notif.remove(), 600); }, 3500);
-  }
+  _showMoodNotification(score, type, accuracy = null) { this.uiManager.showMoodNotification(score, type, accuracy); }
 
   updateSettings(s) { this.settings = { ...this.settings, ...s }; if (this.isHost) this.net.relay({ t: 'SETTINGS', settings: this.settings }); }
 
@@ -1567,18 +1566,7 @@ export default class Game {
     return events[Math.floor(Math.random() * events.length)];
   }
 
-  _showNightEvent(event) {
-    if (!event) return;
-    const nightOv = document.getElementById('nightOv');
-    if (nightOv) {
-      const evBanner = document.createElement('div');
-      evBanner.className = 'night-event-banner';
-      evBanner.innerHTML = `<div style="font-size:1.5rem">${event.name}</div><div class="muted" style="font-size:.75rem;margin-top:4px">${event.desc}</div>`;
-      nightOv.appendChild(evBanner);
-      setTimeout(() => evBanner.remove(), 5000);
-    }
-    ui.addLog(`🌩 ${event.name} — ${event.desc}`, 'ls');
-  }
+  _showNightEvent(event) { this.uiManager.showNightEvent(event); }
 
   // ══════════════════════════════════════════════════════════
   // WHISPERING
@@ -1643,18 +1631,32 @@ export default class Game {
   _showGhostClueInput() {
     const chatPanel = document.getElementById('chatPanel');
     if (!chatPanel) return;
+    const GHOST_PHRASES = [
+      'Check the evidence', 'The quiet one', 'Wrong floor entirely',
+      'Trust no one', 'Watch their hands', 'Listen more carefully',
+      'Not who seems', 'Evidence was forged', 'Same floor twice',
+      'Follow the scent', 'Basement holds secrets', 'They lied twice',
+      'Look at shoes', 'Hair gives away', 'Kitchen was suspicious',
+      'Upper floor danger', 'Alibi doesn\'t match', 'Count the votes',
+      'Night was loud', 'Search the library',
+    ];
     const gcDiv = document.createElement('div');
     gcDiv.id = 'ghostClueArea';
     gcDiv.style.cssText = 'padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:8px;margin:6px 0';
-    gcDiv.innerHTML = `<div style="font-size:.75rem;color:var(--pale-dim);margin-bottom:4px">👻 Type exactly 3 words:</div><input type="text" id="ghostClueInput" class="input" placeholder="three word clue" style="width:100%"><button class="btn btn-sm btn-out" id="ghostClueSend" style="margin-top:4px;width:100%">Send Ghost Clue</button>`;
+    gcDiv.innerHTML = `<div style="font-size:.75rem;color:var(--pale-dim);margin-bottom:4px">👻 Select a cryptic clue for the living:</div>
+      <select id="ghostClueSelect" class="input" style="width:100%;padding:6px;background:rgba(0,0,0,.4);color:var(--pale);border:1px solid rgba(201,168,76,.2);border-radius:6px;font-size:.8rem">
+        <option value="" disabled selected>— Choose your whisper —</option>
+        ${GHOST_PHRASES.map(p => `<option value="${p}">${p}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm btn-out" id="ghostClueSend" style="margin-top:4px;width:100%">Send Ghost Clue</button>`;
     chatPanel.appendChild(gcDiv);
     document.getElementById('ghostClueSend').onclick = () => {
-      const text = document.getElementById('ghostClueInput').value.trim();
-      const words = text.split(/\s+/);
-      if (words.length !== 3) { ui.toast('Exactly 3 words!', true); return; }
+      const sel = document.getElementById('ghostClueSelect');
+      const text = sel?.value;
+      if (!text) { ui.toast('Select a clue first!', true); return; }
       this.ghostClueUsed = true;
-      this.net.relay({ t: 'GHOST_CLUE', text: words.join(' ') });
-      chat.addMessage('', `👻 Your message echoes through the manor... "${words.join(' ')}"`, 'ghost');
+      this.net.relay({ t: 'GHOST_CLUE', text });
+      chat.addMessage('', `👻 Your message echoes through the manor... "${text}"`, 'ghost');
       ui.toast('Your whisper from beyond has been delivered...');
       gcDiv.remove();
     };
@@ -1725,221 +1727,31 @@ export default class Game {
     const btn = document.getElementById('btnGameHub');
     if (btn) {
       btn.style.display = 'inline-flex';
-      btn.onclick = () => this._openGameHub();
+      btn.onclick = () => this.uiManager.openGameHub();
     }
-    this._renderResourceHUD();
+    this.uiManager.renderResourceHUD();
   }
 
   // ══════════════════════════════════════════════════════════
   // UNIFIED GAME HUB (replaces town board + evidence + more)
   // Tabs: Players | Evidence | Dossier (det only) | Suspicion
   // ══════════════════════════════════════════════════════════
-  _openGameHub(startTab = 'players') {
-    const existing = document.getElementById('gameHubModal');
-    if (existing) { existing.remove(); return; }
-    const modal = document.createElement('div');
-    modal.id = 'gameHubModal';
-    modal.className = 'overlay-modal';
-
-    const tabs = [
-      { key: 'players', label: '👥 Players', forAll: true },
-      { key: 'evidence', label: '🗂 Evidence', forAll: true },
-      { key: 'dossier', label: '🕵 Dossier', forAll: false, roles: ['detective'] },
-      { key: 'suspicion', label: '📊 Suspicion', forAll: true },
-    ];
-
-    let html = `<div class="modal-card gh-card"><div class="gh-header"><div class="gh-title">📋 GAME HUB</div><div class="gh-tabs">`;
-    tabs.forEach(tab => {
-      if (!tab.forAll && (!tab.roles || !tab.roles.includes(this.myRole))) return;
-      html += `<button class="gh-tab${tab.key === startTab ? ' gh-tab-active' : ''}" data-tab="${tab.key}">${tab.label}</button>`;
-    });
-    html += `</div></div><div class="gh-body" id="ghBody"></div><button class="btn btn-sm btn-out gh-close" id="ghClose">Close</button></div>`;
-    modal.innerHTML = html;
-    document.body.appendChild(modal);
-
-    // Wire tabs
-    modal.querySelectorAll('.gh-tab').forEach(btn => {
-      btn.onclick = () => {
-        modal.querySelectorAll('.gh-tab').forEach(b => b.classList.remove('gh-tab-active'));
-        btn.classList.add('gh-tab-active');
-        this._renderGameHubTab(btn.dataset.tab);
-      };
-    });
-    document.getElementById('ghClose').onclick = () => modal.remove();
-    this._renderGameHubTab(startTab);
-  }
-
-  _renderGameHubTab(tab) {
-    const body = document.getElementById('ghBody');
-    if (!body) return;
-    if (tab === 'players') this._renderGameHubPlayers(body);
-    else if (tab === 'evidence') this._renderGameHubEvidence(body);
-    else if (tab === 'dossier') this._renderGameHubDossier(body);
-    else if (tab === 'suspicion') this._renderGameHubSuspicion(body);
-  }
-
-  _renderGameHubPlayers(body) {
-    let html = '<div class="gh-section-title">👥 PLAYERS</div>';
-    this.players.forEach(p => {
-      const persona = this.charData[p.id]?.persona;
-      const icon = persona?.icon || '❓';
-      const name = persona?.name || p.name;
-      const alive = p.alive;
-      const roleStr = !alive ? ` — <span class="gh-role-tag">${p.role || 'unknown'}</span>` : '';
-      const statusClass = alive ? 'gh-alive' : 'gh-dead';
-      const executedLabel = (!alive && this.voteHistory.some(vh => vh.exId === p.id)) ? '<span class="gh-executed">EXECUTED</span>' : '';
-      const killedLabel = (!alive && !executedLabel) ? '<span class="gh-killed">KILLED</span>' : '';
-      html += `<div class="gh-player ${statusClass}"><span class="gh-player-icon">${icon}</span><span class="gh-player-name">${name}</span>${executedLabel}${killedLabel}${roleStr}</div>`;
-    });
-    body.innerHTML = html;
-  }
-
-  _renderGameHubEvidence(body, filter = 'all') {
-    let filtered = [...this.evidenceLedger];
-    if (filter === 'verified') filtered = filtered.filter(e => e.status === 'verified');
-    else if (filter === 'unverified') filtered = filtered.filter(e => e.status === 'unverified');
-    else if (['trace','small','medium','large','perfect'].includes(filter)) filtered = filtered.filter(e => e.strength === filter);
-
-    const byRound = {};
-    filtered.forEach(e => { if (!byRound[e.round]) byRound[e.round] = []; byRound[e.round].push(e); });
-    const totalVerified = this.evidenceLedger.filter(e => e.status === 'verified').length;
-
-    const filters = [
-      { key: 'all', label: '🗂 All' }, { key: 'verified', label: '✅ Verified' }, { key: 'unverified', label: '❓ Unverified' },
-      { key: 'trace', label: '💨 Trace' }, { key: 'small', label: '🔹 Small' }, { key: 'medium', label: '🔸 Medium' },
-      { key: 'large', label: '🔴 Strong' }, { key: 'perfect', label: '⭐ Perfect' },
-    ];
-    let html = '<div class="gh-section-title">🗂 EVIDENCE</div>';
-    html += `<div class="eb-filters">${filters.map(f => `<button class="eb-filter-btn${filter === f.key ? ' eb-filter-active' : ''}" data-filter="${f.key}">${f.label}</button>`).join('')}</div>`;
-    html += `<div class="eb-stats"><span>🗂 ${this.evidenceLedger.length} total</span><span>✅ ${totalVerified} verified</span><span>❓ ${this.evidenceLedger.length - totalVerified} unverified</span></div>`;
-    if (!filtered.length) {
-      html += `<div class="muted" style="padding:20px;text-align:center">${filter === 'all' ? 'No evidence collected yet.' : `No ${filter} evidence found.`}</div>`;
-    }
-    Object.entries(byRound).sort((a,b) => Number(a[0]) - Number(b[0])).forEach(([round, evs]) => {
-      const rv = evs.filter(e => e.status === 'verified').length;
-      html += `<div class="eb-round"><div class="eb-round-header">Night ${round} <span class="eb-round-count">${evs.length} clue${evs.length > 1 ? 's' : ''}${rv ? `, ${rv} verified` : ''}</span></div>`;
-      evs.forEach(e => {
-        const statusIcon = e.status === 'verified' ? (e.accuracyPct >= 70 ? '🟢' : e.accuracyPct >= 30 ? '🟡' : '🔴') : '❓';
-        const statusLabel = e.status === 'verified' ? `${e.accuracyPct}%` : 'Unverified';
-        const sourceLabel = e.source === 'crime-scene' ? '🔍 Crime Scene' : e.source === 'forged' ? '🔨 Forged' : '🔎 Investigation';
-        const strengthMap = { none: { label: 'No Evidence', color: '#555' }, trace: { label: 'Trace', color: '#888' }, small: { label: 'Small', color: '#42a5f5' }, medium: { label: 'Medium', color: '#f9a825' }, large: { label: 'Strong', color: '#e53935' }, perfect: { label: '★ Perfect', color: '#ffd700' } };
-        const str = strengthMap[e.strength] || strengthMap.medium;
-        const strengthBadge = e.strength ? `<span class="eb-strength" style="color:${str.color};border-color:${str.color}">${str.label}</span>` : '';
-        // Cross-reference highlighting
-        const crossRef = this._hasEvidenceCrossRef(e) ? '<span class="eb-cross-ref">✨ MATCH</span>' : '';
-        html += `<div class="eb-evidence" style="border-left:3px solid ${str?.color || 'rgba(255,255,255,.1)'}"><div class="eb-evidence-header">${statusIcon} <span class="eb-status">${statusLabel}</span>${strengthBadge}${crossRef}<span class="eb-source">${sourceLabel}</span></div><div class="eb-text">${e.text}</div>${e.verdictText ? `<div class="eb-verdict">${e.verdictText}</div>` : ''}</div>`;
-      });
-      html += `</div>`;
-    });
-    body.innerHTML = html;
-    body.querySelectorAll('.eb-filter-btn').forEach(btn => {
-      btn.onclick = () => this._renderGameHubEvidence(body, btn.dataset.filter);
-    });
-  }
-
-  _hasEvidenceCrossRef(evidence) {
-    if (this.myRole !== 'detective' || !Object.keys(this.dossier).length) return false;
-    const text = (evidence.text || '').toLowerCase();
-    for (const traits of Object.values(this.dossier)) {
-      for (const t of traits) {
-        if (t.value && text.includes(t.value.toLowerCase().slice(0, 15))) return true;
-      }
-    }
-    return false;
-  }
-
-  _renderGameHubDossier(body) {
-    let html = '<div class="gh-section-title">🕵 DETECTIVE\'S DOSSIER</div>';
-    html += `<div class="muted" style="font-size:.7rem;margin-bottom:8px">Hidden traits you've discovered. Only you can see this.</div>`;
-    const entries = Object.entries(this.dossier);
-    if (!entries.length) {
-      html += `<div class="muted" style="padding:20px;text-align:center">No hidden traits discovered yet.<br><span style="font-size:.7rem">Use "🕵 Investigate Traits" during investigation phase. (${3 - this.traitInvestsUsed}/3 remaining)</span></div>`;
-    }
-    entries.forEach(([pid, traits]) => {
-      const persona = this.charData[pid]?.persona;
-      const icon = persona?.icon || '❓';
-      const name = persona?.name || pid;
-      html += `<div class="gh-dossier-entry"><div class="gh-dossier-name">${icon} ${name}</div>`;
-      traits.forEach(t => {
-        html += `<div class="gh-dossier-trait"><span class="gh-trait-label">${t.label}:</span> <span class="gh-trait-value">${t.value}</span></div>`;
-      });
-      html += `</div>`;
-    });
-    body.innerHTML = html;
-  }
-
-  _renderGameHubSuspicion(body) {
-    let html = '<div class="gh-section-title">📊 SUSPICION & ACTIVITY</div>';
-    // Suspicion meter from suspicion votes
-    if (Object.keys(this.suspicionVotes).length > 0) {
-      html += '<div class="gh-sub-title">Suspicion Levels</div>';
-      Object.entries(this.suspicionVotes).forEach(([tid, v]) => {
-        const total = v.up + v.down;
-        const pct = total ? Math.round((v.down / total) * 100) : 0;
-        const name = this._pname(tid);
-        const bar = `<div class="gh-sus-bar"><div class="gh-sus-fill" style="width:${pct}%"></div></div>`;
-        html += `<div class="gh-sus-row"><span class="gh-sus-name">${name}</span>${bar}<span class="gh-sus-pct">${pct}%</span></div>`;
-      });
-    }
-    // Private chat activity indicators (visible to all)
-    const kSus = this.teamSuspicionCounters.killer || 0;
-    const dSus = this.teamSuspicionCounters.detective || 0;
-    if (kSus > 0 || dSus > 0) {
-      html += '<div class="gh-sub-title">Private Activity Detected</div>';
-      if (kSus >= 6) html += `<div class="gh-activity-alert">💭 ${kSus >= 20 ? 'A secret alliance is clearly operating!' : kSus >= 15 ? 'A group has been talking in private repeatedly...' : kSus >= 10 ? 'Hushed whispers can be heard from a corner...' : 'Some guests seem to be exchanging glances...'}</div>`;
-      if (dSus >= 6) html += `<div class="gh-activity-alert">💭 ${dSus >= 20 ? 'Investigators are clearly coordinating!' : dSus >= 15 ? 'Multiple people have been sharing notes privately...' : dSus >= 10 ? 'Someone has been passing notes under the table...' : 'A few guests seem unusually well-informed...'}</div>`;
-    }
-    // Vote history
-    if (this.voteHistory.length > 0) {
-      html += '<div class="gh-sub-title">Vote History</div>';
-      this.voteHistory.forEach(vh => {
-        const exPlayer = vh.exId ? this.players.find(p => p.id === vh.exId) : null;
-        html += `<div class="gh-vote-round">Round ${vh.round}${exPlayer ? ` — ${this._pname(vh.exId)} executed` : ' — No execution'}</div>`;
-      });
-    }
-    if (!Object.keys(this.suspicionVotes).length && !this.voteHistory.length && kSus < 6 && dSus < 6) {
-      html += `<div class="muted" style="padding:20px;text-align:center">No suspicion data yet.</div>`;
-    }
-    body.innerHTML = html;
-  }
+  _openGameHub(startTab = 'players') { this.uiManager.openGameHub(startTab); }
+  _renderGameHubTab(tab) { this.uiManager._renderGameHubTab(tab); }
+  _renderGameHubPlayers(body) { this.uiManager._renderPlayers(body); }
+  _renderGameHubEvidence(body, filter) { this.uiManager._renderEvidence(body, filter); }
+  _renderGameHubDossier(body) { this.uiManager._renderDossier(body); }
+  _renderGameHubSuspicion(body) { this.uiManager._renderSuspicion(body); }
 
   // ══════════════════════════════════════════════════════════
   // SUSPICION ESCALATION — private chat usage → public msgs
   // ══════════════════════════════════════════════════════════
-  _checkSuspicionEscalation(team) {
-    const count = this.teamSuspicionCounters[team] || 0;
-    const msgs = {
-      6: '💭 Some guests seem to be exchanging glances...',
-      10: '💭 Hushed whispers can be heard from a corner of the room...',
-      15: '💭 A group of people have been seen talking in private repeatedly...',
-      20: '⚠ There is clearly a secret alliance forming among certain guests!',
-    };
-    if (msgs[count]) {
-      this.net.relay({ t: 'SUSPICION_MSG', text: msgs[count] });
-      chat.addMessage('', msgs[count], 'system');
-      ui.addLog(msgs[count], 'ls');
-    }
-  }
+  _checkSuspicionEscalation(team) { this.uiManager.checkSuspicionEscalation(team); }
 
   // ══════════════════════════════════════════════════════════
   // RESOURCE HUD — persistent top bar
   // ══════════════════════════════════════════════════════════
-  _renderResourceHUD() {
-    const el = document.getElementById('resourceHUD');
-    if (!el) return;
-    if (this.phase === 'lobby' || this.phase === 'over') { el.style.display = 'none'; return; }
-    el.style.display = 'flex';
-    const maxActions = this._getMyMaxActions();
-    let html = `<span class="rh-item">🔎 Actions: ${this.myActionsUsed || 0}/${maxActions}</span>`;
-    if (this.myRole === 'killer') {
-      html += `<span class="rh-item">🗡 Chat: ${this.teamChatUsed}/3</span>`;
-      html += `<span class="rh-item">🔨 Forge: ${this.forgesUsed}/1</span>`;
-    } else if (this.myRole === 'detective') {
-      html += `<span class="rh-item">🔍 Chat: ${this.teamChatUsed}/3</span>`;
-      html += `<span class="rh-item">🕵 Traits: ${this.traitInvestsUsed}/3</span>`;
-    }
-    el.innerHTML = html;
-  }
+  _renderResourceHUD() { this.uiManager.renderResourceHUD(); }
 
   // ══════════════════════════════════════════════════════════
   // KILLER EVIDENCE FORGING (1/match)

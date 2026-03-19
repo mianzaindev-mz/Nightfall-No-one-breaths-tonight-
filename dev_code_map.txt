@@ -1,0 +1,85 @@
+# NightFall Developer Code Map
+
+> **Purpose:** Precise pointers for tearing apart the monolithic `public/js/game.js` into Modular Architecture (Season 2). Reference this file before making any `multi_replace` calls to ensure we don't accidentally slice through active functions.
+
+## 🗺 THE MONOLITH (`public/js/game.js` — 2,238 lines)
+
+### 1. Initialization & State (`Lines 1 - 120`)
+- **Variables:** Setup for phases, timers, resources, evidence ledger, dossier, votes.
+- **Action:** Leave in `game.js`.
+
+### 2. Network WebSocket Handlers (`Lines 122 - 243`)
+- **Block:** `_setupNetHandlers()` containing all `this.net.on(...)` listeners.
+- **Action [STAGE 1 TARE]**: Extract entirely into `managers/NetAction.js`.
+- **Note:** Relies heavily on `ui.toast` and `chat.addMessage`.
+
+### 3. Lobby & Host Start (`Lines 245 - 287`)
+- **Block:** `createLobby()`, `joinLobby()`, `_showLobby()`, `hostStart()`, `_showRole()`
+- **Action:** Extract DOM updates to `UIManager.js`. Keep logic in `PhaseManager.js`.
+
+### 4. Skip Phase System (`Lines 288 - 329`)
+- **Block:** `voteSkip()`, `_triggerSkip()`, `_updateSkipUI()`, `_renderSkipButton()`
+- **Action:** Move to `PhaseManager.js` where timers live.
+
+### 5. GRACE PERIOD Phase (`Lines 331 - 425`)
+- **Block:** `_beginGrace()`, `_onGrace()`
+- **Action [STAGE 1 TARE]:** Move to `PhaseManager.js`. Extract `innerHTML` injections for `#graceBanner` to `UIManager.js`.
+
+### 6. NIGHT PHASE Phase (`Lines 427 - 587`)
+- **Block:** `_beginNight()`, `_showNight()`, `_showKillerNight()`, `_showDoctorNight()`, `_checkNightDone()`, `_resolveNight()`
+- **Action [STAGE 1 TARE]:** Move to `PhaseManager.js`. The logic for generating kill clues (`generateKillClues`) will eventually move to `systems/QTE.js`.
+
+### 7. INVESTIGATION PHASE Phase (`Lines 589 - 905`)
+- **Block:** `_onInvestigate()`, `_renderInvestigationUI()`, `_doInvestigate()`, `_doVerify()`
+- **Action [STAGE 1 TARE]:** Move to `PhaseManager.js`. Huge chunk of raw HTML generation (`investArea`) inside `_renderInvestigationUI()` needs to be dumped into `UIManager.js`.
+
+### 8. Democratic Investigation System (`Lines 907 - 1088`)
+- **Block:** `_requestInvestigation()`, `_onInvestRequest()`, `_castInvestVote()`, `_resolveInvestRequest()`, `_onInvestDecision()`
+- **Action:** Move logic to `PhaseManager.js`, move the `notificationStack` card generation to `UIManager.js`.
+
+### 9. Killer Snoop Alerts (`Lines 1090 - 1121`)
+- **Block:** `_sendSnoopAlert()`, `_showSnoopAlert()`
+- **Action [STAGE 3]:** Will move to `systems/Roles.js` later.
+
+### 10. DINNER PHASE Phase (`Lines 1123 - 1332`)
+- **Block:** `_beginDinner()`, `_onDinner()`, `_renderVotes()`, `_pickVote()`, `confirmVote()`, `skipVote()`, `_checkVoteDone()`, `_closeVote()`, `_checkWin()`
+- **Action [STAGE 1 TARE]:** Move to `PhaseManager.js`.
+
+### 11. VERDICT PHASE Phase (`Lines 1334 - 1414`)
+- **Block:** `_onVerdict()`, `_onGameOver()`
+- **Action [STAGE 1 TARE]:** Move to `PhaseManager.js`.
+
+### 12. Helper & Reset Utilities (`Lines 1416 - 1465`)
+- **Block:** `backToLobby()`, `sendChat()`, `sendLastWords()`
+- **Action:** Move `backToLobby` to `PhaseManager.js`. Keep `sendChat` where it is.
+
+### 13. Dramatic Death UI & Mood Notifications (`Lines 1467 - 1535`)
+- **Block:** `_showDramaticDeath()`, `_showMoodNotification()`
+- **Action:** Move absolutely everything here to `UIManager.js`.
+
+### 14. Night Events Randomizer (`Lines 1553 - 1581`)
+- **Block:** `_rollNightEvent()`, `_showNightEvent()`
+- **Action:** Move to `PhaseManager.js`.
+
+### 15. Whispering & Ghost Clues (`Lines 1583 - 1661`)
+- **Block:** `_showWhisperUI()`, `_openWhisperPicker()`, `_sendWhisper()`, `_onWhisper()`, `_showGhostClueInput()`
+- **Action:** Move pure UI DOM generation to `UIManager.js`.
+
+### 16. Suspicion Voting System (`Lines 1663 - 1718`)
+- **Block:** `_showSuspicionUI()`, `_renderSuspicion()`
+- **Action:** Extract to `UIManager.js`.
+
+### 17. Game Hub / Evidence Board logic (`Lines 1720 - 1942`)
+- **Block:** `_openGameHub()`, `_renderGameHubPlayers()`, `_renderGameHubEvidence()`, `_renderGameHubDossier()`, `_renderGameHubSuspicion()`, `_renderResourceHUD()`
+- **Action:** Extract all of these pure-HTML rendering functions into `UIManager.js` immediately.
+
+### 18. Role Abilities (`Lines 1944 - 2061`)
+- **Block:** `_forgeEvidence()`, `_investigateTraits()`
+- **Action [STAGE 3 TARE]:** Leave alone for now, will extract in Stage 3 to `systems/Roles.js`.
+
+### 19. Bots System (`Lines 2160 - 2237`)
+- **Block:** `addBot()`, `removeBot()`, `_botNightActions()`, `_botInvestigate()`, `_botVote()`
+- **Action:** Keep in `game.js`.
+
+---
+*Created during Stage 1 Prep. Use this map to navigate the teardown safely.*

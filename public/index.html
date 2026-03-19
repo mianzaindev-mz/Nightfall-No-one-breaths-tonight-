@@ -68,25 +68,28 @@
     <div class="nbig" id="nBig">NIGHT DESCENDS</div>
     <div class="nsm" id="nSm">DARKNESS SWALLOWS THE TOWN</div>
     <div id="nAct"></div>
+    <!-- Season 2: Night Ambiance -->
+    <div class="night-ambiance" id="nightAmbiance"></div>
   </div>
 
   <!-- ═══ LANDING ═══ -->
   <div id="s-land" class="screen active">
     <div class="title">NIGHT<em>FALL</em></div>
     <div class="tagline">◈ The Murder Mystery Game ◈</div>
-    <div class="card" style="margin-top:44px">
+    <div class="season-badge">— Season 2 —</div>
+    <div class="card glass" style="margin-top:24px">
       <label class="lbl">Choose Your Avatar</label>
       <div class="avatar-grid" id="avatarGrid"></div>
       <label class="lbl">Your Name</label>
       <input id="iName" type="text" placeholder="Enter your name..." maxlength="20" autocomplete="off">
       <button class="btn btn-red" id="btnCreate" aria-label="Create new lobby">🩸 Create Lobby</button>
-      <div class="divider" style="text-align:center;margin:11px 0;color:var(--pale-dim);font-size:.85rem">— or —</div>
+      <div class="blood-divider"></div>
       <label class="lbl">Lobby Code</label>
       <input id="iCode" type="text" placeholder="Enter 6-character code..." maxlength="6" style="text-transform:uppercase;letter-spacing:.2em" autocomplete="off">
       <button class="btn btn-out" id="btnJoin" aria-label="Join existing lobby">Enter the Shadows</button>
     </div>
     <div class="tc mt16 muted footer-info">
-      <div>4–16 players • Play across any device on the same network</div>
+      <div>4–30 players • Play across any device on the same network</div>
       <button class="btn btn-sm btn-out mt8" id="btnRules" style="margin:10px auto 0;display:inline-flex" aria-label="How to play">📜 How to Play</button>
       <div class="stats-bar" id="statsBar"></div>
     </div>
@@ -94,9 +97,10 @@
 
   <!-- Avatar Picker Modal -->
   <div class="modal-overlay" id="avatarPickerModal">
-    <div class="modal" style="max-width:400px">
+    <div class="modal glass" style="max-width:480px;width:90%">
       <button class="modal-close" id="avatarPickerClose" aria-label="Close">&times;</button>
-      <h3 style="margin-bottom:10px">🎭 Choose Your Avatar</h3>
+      <h3 style="margin-bottom:4px;font-family:var(--font-display);letter-spacing:.12em;font-size:.9rem">🎭 CHOOSE YOUR AVATAR</h3>
+      <div style="text-align:center;font-size:.55rem;color:var(--pale-dim);letter-spacing:.1em;margin-bottom:12px;font-family:var(--font-mono)">SELECT YOUR IDENTITY FOR THE NIGHT</div>
       <div class="avatar-grid avatar-grid-full" id="avatarPickerGrid"></div>
     </div>
   </div>

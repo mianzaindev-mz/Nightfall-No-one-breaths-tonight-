@@ -35,14 +35,21 @@ ui.updateSoundToggle(audio.isMuted());
 document.getElementById('soundToggle').addEventListener('click', () => {
   const muted = audio.toggleMute();
   ui.updateSoundToggle(muted);
+  // G14: Update equalizer bar state
+  const eq = document.querySelector('.audio-eq');
+  if (eq) eq.classList.toggle('paused', muted);
 });
+// G14: Audio equalizer bars
+(function addEqualizer() {
+  const toggle = document.getElementById('soundToggle');
+  if (!toggle) return;
+  const eq = document.createElement('span');
+  eq.className = 'audio-eq' + (audio.isMuted() ? ' paused' : '');
+  for (let i = 0; i < 5; i++) { const b = document.createElement('span'); b.className = 'audio-eq-bar'; eq.appendChild(b); }
+  toggle.appendChild(eq);
+})();
 
 // ── Avatar Selection ─────────────────────────────────────────
-ui.renderAvatarGrid(selectedAvatar, (avatar) => {
-  selectedAvatar = avatar;
-  ui.renderAvatarGrid(selectedAvatar, arguments.callee); // re-render
-});
-// Better: use a stable callback
 function onAvatarSelect(avatar) {
   selectedAvatar = avatar;
   ui.renderAvatarGrid(selectedAvatar, onAvatarSelect);
@@ -185,51 +192,67 @@ document.getElementById('rulesOk').addEventListener('click', () => {
   document.getElementById('rulesModal').classList.remove('open');
 });
 
-// ── Town Board Modal ─────────────────────────────────────────
-document.getElementById('btnTownBoard').addEventListener('click', () => {
+// ── Town Board Modal (guarded — A4 fix) ─────────────────────
+document.getElementById('btnTownBoard')?.addEventListener('click', () => {
   const boardData = game.getTownBoardData();
   ui.renderTownBoard(boardData);
-  document.getElementById('townBoardModal').classList.add('open');
+  document.getElementById('townBoardModal')?.classList.add('open');
 });
 
-document.getElementById('townBoardClose').addEventListener('click', () => {
-  document.getElementById('townBoardModal').classList.remove('open');
+document.getElementById('townBoardClose')?.addEventListener('click', () => {
+  document.getElementById('townBoardModal')?.classList.remove('open');
 });
 
-document.getElementById('townBoardOk').addEventListener('click', () => {
-  document.getElementById('townBoardModal').classList.remove('open');
+document.getElementById('townBoardOk')?.addEventListener('click', () => {
+  document.getElementById('townBoardModal')?.classList.remove('open');
 });
 
-// ── Evidence Window ──────────────────────────────────────────
-document.getElementById('btnEvidenceWindow').addEventListener('click', () => {
+// ── Evidence Window (guarded — A4 fix) ──────────────────────
+document.getElementById('btnEvidenceWindow')?.addEventListener('click', () => {
   game.renderEvidenceWindow();
-  document.getElementById('evidenceWindowModal').classList.add('open');
+  document.getElementById('evidenceWindowModal')?.classList.add('open');
 });
 
-document.getElementById('evidenceWindowClose').addEventListener('click', () => {
-  document.getElementById('evidenceWindowModal').classList.remove('open');
+document.getElementById('evidenceWindowClose')?.addEventListener('click', () => {
+  document.getElementById('evidenceWindowModal')?.classList.remove('open');
 });
 
-document.getElementById('evidenceWindowOk').addEventListener('click', () => {
-  document.getElementById('evidenceWindowModal').classList.remove('open');
+document.getElementById('evidenceWindowOk')?.addEventListener('click', () => {
+  document.getElementById('evidenceWindowModal')?.classList.remove('open');
+});
+
+// ── Modal Body Scroll Lock ───────────────────────────────────
+function syncBodyLock() {
+  const anyOpen = document.querySelector('.modal-overlay.open');
+  document.body.classList.toggle('modal-open', !!anyOpen);
+}
+
+// Watch all modal overlays for open/close
+const observer = new MutationObserver(syncBodyLock);
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
 });
 
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.remove('open');
+    if (e.target === overlay) {
+      overlay.classList.remove('open');
+      syncBodyLock();
+    }
   });
 });
 
 // ── Keyboard Shortcuts ───────────────────────────────────────
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
-    if (document.getElementById('s-land').classList.contains('active')) {
+    if (document.getElementById('s-land')?.classList.contains('active')) {
       const c = document.getElementById('iCode').value.trim();
       c ? document.getElementById('btnJoin').click() : document.getElementById('btnCreate').click();
     }
   }
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+    syncBodyLock();
   }
 });
