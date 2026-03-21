@@ -268,14 +268,14 @@ function updateLobbyProgress() {
   if (!bar || !text) return;
   const count = game.players.length;
   const min = 4;
-  const max = 16;
+  const max = game.maxLobbySize || 30;
   const pct = Math.min(100, Math.round((count / max) * 100));
   bar.style.width = pct + '%';
   if (count < min) {
     text.textContent = `Need ${min - count} more player${min - count > 1 ? 's' : ''} to start`;
     bar.classList.remove('lobby-progress-ready');
   } else {
-    text.textContent = `${count}/${max} players — Ready to start!`;
+    text.textContent = `✅ ${count} players — Ready to start!`;
     bar.classList.add('lobby-progress-ready');
   }
 }
