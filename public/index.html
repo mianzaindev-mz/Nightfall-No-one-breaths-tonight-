@@ -90,8 +90,43 @@
     </div>
     <div class="tc mt16 muted footer-info">
       <div>4–30 players • Play across any device on the same network</div>
-      <button class="btn btn-sm btn-out mt8" id="btnRules" style="margin:10px auto 0;display:inline-flex" aria-label="How to play">📜 How to Play</button>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+        <button class="btn btn-sm btn-out" id="btnRules" style="display:inline-flex" aria-label="How to play">📜 How to Play</button>
+        <button class="btn btn-sm btn-out" id="btnAppSettings" style="display:inline-flex" aria-label="Settings">⚙ Settings</button>
+      </div>
       <div class="stats-bar" id="statsBar"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="appSettingsModal">
+    <div class="modal glass" style="max-width:500px;width:90%">
+      <button class="modal-close" id="appSettingsClose" aria-label="Close">&times;</button>
+      <h3 style="margin-bottom:12px;font-family:var(--font-display);letter-spacing:.12em;font-size:.9rem">⚙ SETTINGS</h3>
+      <div class="settings-tabs" id="settingsTabs">
+        <button class="settings-tab active" data-tab="license">📜 License</button>
+      </div>
+      <div class="settings-panel" id="settingsPanel">
+        <div class="settings-license">
+          <div style="text-align:center;margin-bottom:12px">
+            <div style="font-family:var(--font-display);font-size:1.1rem;letter-spacing:.15em;color:var(--gold)">NIGHTFALL</div>
+            <div style="font-size:.6rem;color:var(--pale-dim);margin-top:2px">The Murder Mystery Game — Season 2</div>
+          </div>
+          <div class="license-block">
+            <div class="license-row"><span class="license-label">Version</span><span>2.0.0</span></div>
+            <div class="license-row"><span class="license-label">Author</span><span>Zain Waqar</span></div>
+            <div class="license-row"><span class="license-label">License</span><span>MIT License</span></div>
+            <div class="license-row"><span class="license-label">Repository</span><span><a href="https://github.com/mianzaindev/NightFall" target="_blank" style="color:var(--gold-dim)">GitHub</a></span></div>
+          </div>
+          <div class="license-text">
+            <p>MIT License</p>
+            <p>Copyright © 2026 Zain Waqar</p>
+            <p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+            <p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+            <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

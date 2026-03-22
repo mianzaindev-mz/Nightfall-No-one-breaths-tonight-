@@ -3278,3 +3278,38 @@ h3, .modal h3, .recap-title, .chronicle-title {
 }
 .pwa-banner-actions { display: flex; gap: 6px; flex-shrink: 0; }
 @keyframes pwaBannerIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* ── Settings Modal ───────────────────────────────────────── */
+.settings-tabs {
+  display: flex; gap: 4px; margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06); padding-bottom: 8px;
+}
+.settings-tab {
+  background: none; border: none; color: var(--pale-dim); cursor: pointer;
+  font-family: var(--font-display); font-size: .6rem; letter-spacing: .1em;
+  padding: 6px 12px; border-radius: 6px 6px 0 0; transition: all .2s;
+}
+.settings-tab:hover { color: var(--pale); background: rgba(255,255,255,.03); }
+.settings-tab.active {
+  color: var(--gold); border-bottom: 2px solid var(--gold);
+  background: rgba(201,168,76,.05);
+}
+.settings-panel { padding: 4px 0; }
+.license-block {
+  background: rgba(255,255,255,.03); border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px;
+}
+.license-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; font-size: .7rem; color: var(--pale);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.license-row:last-child { border-bottom: none; }
+.license-label { color: var(--pale-dim); font-size: .6rem; letter-spacing: .05em; }
+.license-text {
+  background: rgba(0,0,0,.3); border-radius: 8px; padding: 12px 14px;
+  max-height: 180px; overflow-y: auto; font-size: .55rem; color: var(--pale-dim);
+  line-height: 1.5; border: 1px solid rgba(255,255,255,.04);
+}
+.license-text p { margin: 0 0 8px; }
+.license-text p:last-child { margin-bottom: 0; }

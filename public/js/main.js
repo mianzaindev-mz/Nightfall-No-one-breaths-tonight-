@@ -56,6 +56,23 @@ function onAvatarSelect(avatar) {
 }
 ui.renderAvatarGrid(selectedAvatar, onAvatarSelect);
 
+// ── App Settings Modal ───────────────────────────────────────
+document.getElementById('btnAppSettings').addEventListener('click', () => {
+  document.getElementById('appSettingsModal').classList.add('open');
+  syncBodyLock();
+});
+document.getElementById('appSettingsClose').addEventListener('click', () => {
+  document.getElementById('appSettingsModal').classList.remove('open');
+  syncBodyLock();
+});
+// Tab switching (future-proof for more tabs)
+document.querySelectorAll('.settings-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
 // ── Game Stats ───────────────────────────────────────────────
 ui.renderStats(game.getStats());
 
