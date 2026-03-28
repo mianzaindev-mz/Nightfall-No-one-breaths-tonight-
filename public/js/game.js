@@ -739,7 +739,7 @@ export default class Game {
       }
     }
     else if (savedIds.length > 0) { ui.showDoctorSave(this._pname(savedIds[0])); ui.addLog(`Night ${this.round}: ${this._pname(savedIds[0])} was saved!`, 'lc'); audio.play('save'); this._showEventBanner('🩺', `${this._pname(savedIds[0])} WAS SAVED`, 'The Doctor protected them through the night!', '#81c784'); }
-    else ui.addLog(`Night ${this.round}: No one died.`, 'ls');
+    else { ui.addLog(`Night ${this.round}: No one died.`, 'ls'); this._showEventBanner('🌙', 'A PEACEFUL NIGHT', 'No one was harmed... for now.', 'var(--pale-dim)'); }
 
     // Crime scene evidence — UNVERIFIED (grey ? circle)
     ui.hideClue();
@@ -1267,6 +1267,9 @@ export default class Game {
     } else {
       this._revoteTiedIds = null;
     }
+
+    // Auto-focus chat input for discussion
+    setTimeout(() => { const ci = document.getElementById('chatInput'); if (ci) ci.focus(); }, 300);
 
     const ia = document.getElementById('investArea'); if (ia) ia.remove();
     const investSkip = document.getElementById('investSkipArea'); if (investSkip) investSkip.remove();

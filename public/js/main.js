@@ -157,6 +157,13 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
   game.backToLobby();
 });
 
+document.getElementById('btnLeaveGame')?.addEventListener('click', () => {
+  game.net.disconnect();
+  game.phase = 'lobby'; game.players = [];
+  ui.show('s-land');
+  ui.toast('Left the game');
+});
+
 // ── Bot Controls ─────────────────────────────────────────────
 document.getElementById('addBotBtn').addEventListener('click', () => game.addBot());
 document.getElementById('rmBotBtn').addEventListener('click', () => game.removeBot());

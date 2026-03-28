@@ -53,8 +53,8 @@ export default class NetAction {
 
     n.on('PLAYER_JOINED', d => {
       if (!g.players.find(p => p.id === d.playerId))
-        g.players.push({ id: d.playerId, name: d.name, avatar: '👤', alive: true, role: null, disconnected: false });
-      g._renderLobby(); ui.toast(`${d.name} joined`);
+        g.players.push({ id: d.playerId, name: d.name, avatar: d.avatar || '👤', alive: true, role: null, disconnected: false });
+      g._renderLobby(); ui.toast(`${d.name} joined`); audio.play('chat');
     });
 
     n.on('PLAYER_LEFT', d => {
