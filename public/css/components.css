@@ -3313,3 +3313,29 @@ h3, .modal h3, .recap-title, .chronicle-title {
 }
 .license-text p { margin: 0 0 8px; }
 .license-text p:last-child { margin-bottom: 0; }
+
+/* ═══ EVENT BANNER ═══ */
+.event-banner {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  animation: eventBannerIn .4s ease-out;
+  pointer-events: none;
+}
+.event-banner-content {
+  text-align: center; padding: 28px 36px;
+  background: rgba(6,6,10,.92); border-radius: 12px;
+  border: 1px solid rgba(201,168,76,.25);
+  box-shadow: 0 0 40px rgba(0,0,0,.5), 0 0 20px rgba(201,168,76,.1);
+}
+.event-banner-out {
+  animation: eventBannerOut .4s ease-in forwards;
+}
+@keyframes eventBannerIn {
+  from { opacity: 0; transform: scale(.9) translateY(-20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes eventBannerOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(.9) translateY(20px); }
+}

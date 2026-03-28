@@ -126,6 +126,21 @@ export default class PhaseManager {
     if (!g.isHost) return;
     const killedIds = []; let savedIds = [];
     const killerTargets = {};
+
+    // ── Fallback: if nightActions is empty but killers exist, force a random kill ──
+    // This prevents 'no one died' rounds caused by relay message drops
+    const livingKillers = g.players.filter(p => p.alive && p.role === 'killer');
+    if (livingKillers.length > 0 && Object.keys(g.nightActions).length === 0) {
+      const possibleTargets = g.players.filter(p => p.alive && p.role !== 'killer');
+      if (possibleTargets.length > 0) {
+        const randomTarget = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+        const randomKiller = livingKillers[Math.floor(Math.random() * livingKillers.length)];
+        g.nightActions[randomKiller.id] = randomTarget.id;
+        // Fallback clue (relay was lost so no QTE data)
+        g.killClues.push({ text: 'The killer struck swiftly — witnesses heard a struggle.', isFalse: false, strength: 'medium' });
+      }
+    }
+
     Object.entries(g.nightActions).forEach(([killerId, targetId]) => {
       killerTargets[targetId] = (killerTargets[targetId] || []);
       killerTargets[targetId].push(killerId);
@@ -167,7 +182,7 @@ export default class PhaseManager {
     // Season 2: Chronicle auto-recording
     killedIds.forEach(kid => {
       const kp = g.players.find(p => p.id === kid);
-      const roomId = locObj?.[kid] || g.playerLocations?.[kid];
+      const roomId = g.playerLocations?.[kid];
       const roomData = roomId ? g.manor?.getRoom(roomId) : null;
       g.chronicle?.record?.('death', {
         name: g._pname(kid),
@@ -230,7 +245,10 @@ export default class PhaseManager {
       return;
     }
     g._isRevote = false;
-    if (sorted.length && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) exId = sorted[0][0];
+    // Determine execution: clear winner only if they have more votes than skip 
+    if (sorted.length && (sorted.length === 1 || sorted[0][1] > (sorted[1]?.[1] || 0)) && sorted[0][1] > skipCount) {
+      exId = sorted[0][0];
+    }
     let isJester = false;
     if (exId) {
       const p = g.players.find(x => x.id === exId);

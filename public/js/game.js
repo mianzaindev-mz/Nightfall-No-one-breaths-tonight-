@@ -732,12 +732,13 @@ export default class Game {
         ui.showDeathAnnounce(this._pname(kid));
         ui.addLog(`Night ${this.round}: ${this._pname(kid)} was found dead.`, 'lk');
       });
+      this._showEventBanner('☠', `${this._pname(killedIds[0])} WAS KILLED`, 'Check the Evidence Board for clues!', 'var(--blood-bright)');
       if (killedIds.length > 1) ui.addLog(`☠ ${killedIds.length} victims tonight! The killers were busy...`, 'lk');
       if (this.detectiveDead) {
         ui.addLog('🔍 The detective has fallen... evidence can no longer be verified.', 'lk');
       }
     }
-    else if (savedIds.length > 0) { ui.showDoctorSave(this._pname(savedIds[0])); ui.addLog(`Night ${this.round}: ${this._pname(savedIds[0])} was saved!`, 'lc'); audio.play('save'); }
+    else if (savedIds.length > 0) { ui.showDoctorSave(this._pname(savedIds[0])); ui.addLog(`Night ${this.round}: ${this._pname(savedIds[0])} was saved!`, 'lc'); audio.play('save'); this._showEventBanner('🩺', `${this._pname(savedIds[0])} WAS SAVED`, 'The Doctor protected them through the night!', '#81c784'); }
     else ui.addLog(`Night ${this.round}: No one died.`, 'ls');
 
     // Crime scene evidence — UNVERIFIED (grey ? circle)
@@ -1422,6 +1423,10 @@ export default class Game {
       };
       ui.addLog(dramaMsgs[ex.role] || `${this._pname(d.exId)} was executed. They were: ${roleLabel}`, 'lv');
       audio.play(d.isJester ? 'jester' : ex.role === 'killer' ? 'bad' : 'good');
+      const bannerColor = ex.role === 'killer' ? '#81c784' : d.isJester ? 'var(--gold)' : 'var(--blood-bright)';
+      const bannerTitle = ex.role === 'killer' ? 'KILLER FOUND!' : d.isJester ? 'JESTER WINS!' : 'INNOCENT EXECUTED';
+      const bannerSub = ex.role === 'killer' ? `${this._pname(d.exId)} was a Killer. Justice prevails.` : d.isJester ? `${this._pname(d.exId)} tricked you all!` : `${this._pname(d.exId)} was innocent... the town has blood on its hands.`;
+      this._showEventBanner('⚖', bannerTitle, bannerSub, bannerColor);
 
       // ── Dramatic reveal for special roles ──
       if (ex.role !== 'civilian') {
@@ -1610,6 +1615,26 @@ export default class Game {
       overlay.classList.add('phase-transition-out');
       setTimeout(() => { overlay.remove(); callback?.(); }, 400);
     }, 600);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // EVENT BANNER — 3-second popup for major game events
+  // ══════════════════════════════════════════════════════════
+  _showEventBanner(icon, title, subtitle, color = 'var(--gold)') {
+    const existing = document.querySelector('.event-banner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.className = 'event-banner';
+    banner.innerHTML = `
+      <div class="event-banner-content" style="border-color:${color}">
+        <div style="font-size:2.2rem;margin-bottom:4px">${icon}</div>
+        <div style="font-size:1rem;font-family:var(--font-display);color:${color};letter-spacing:.1em">${title}</div>
+        <div style="font-size:.7rem;color:var(--pale-dim);margin-top:4px;max-width:280px;line-height:1.4">${subtitle}</div>
+      </div>`;
+    document.body.appendChild(banner);
+    audio.haptic([50, 30, 50]);
+    setTimeout(() => { banner.classList.add('event-banner-out'); }, 2700);
+    setTimeout(() => { banner.remove(); }, 3200);
   }
 
   // ══════════════════════════════════════════════════════════

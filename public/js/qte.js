@@ -295,20 +295,69 @@ function pickQTEType() { return QTE_TYPES[Math.floor(Math.random() * QTE_TYPES.l
 
 export function runQTE(container, difficulty, type = 'kill') {
   const qt = pickQTEType();
-  switch (qt) {
-    case 'circles':   return runCircleHuntQTE(container, difficulty, type);
-    case 'pattern':   return runPatternMemoryQTE(container, difficulty, type);
-    case 'rapid':     return runRapidTapQTE(container, difficulty, type);
-    case 'color':     return runColorMatchQTE(container, difficulty, type);
-    case 'reaction':  return runReactionTimeQTE(container, difficulty, type);
-    case 'heartbeat': return runHeartbeatQTE(container, difficulty, type);
-    case 'search':    return runRoomSearchQTE(container, difficulty, type);
-    case 'shadow':    return runShadowDodgeQTE(container, difficulty, type);
-    case 'wire':      return runWireCutQTE(container, difficulty, type);
-    case 'lockpick':  return runLockpickQTE(container, difficulty, type);
-    case 'memory':    return runMemoryMatchQTE(container, difficulty, type);
-    default:          return runKeySequenceQTE(container, difficulty, type);
-  }
+  const qteRunner = () => {
+    switch (qt) {
+      case 'circles':   return runCircleHuntQTE(container, difficulty, type);
+      case 'pattern':   return runPatternMemoryQTE(container, difficulty, type);
+      case 'rapid':     return runRapidTapQTE(container, difficulty, type);
+      case 'color':     return runColorMatchQTE(container, difficulty, type);
+      case 'reaction':  return runReactionTimeQTE(container, difficulty, type);
+      case 'heartbeat': return runHeartbeatQTE(container, difficulty, type);
+      case 'search':    return runRoomSearchQTE(container, difficulty, type);
+      case 'shadow':    return runShadowDodgeQTE(container, difficulty, type);
+      case 'wire':      return runWireCutQTE(container, difficulty, type);
+      case 'lockpick':  return runLockpickQTE(container, difficulty, type);
+      case 'memory':    return runMemoryMatchQTE(container, difficulty, type);
+      default:          return runKeySequenceQTE(container, difficulty, type);
+    }
+  };
+  return showQTECountdown(container, type, difficulty, qt).then(qteRunner);
+}
+
+// ── QTE PREP COUNTDOWN (5 seconds) ──────────────────────────
+function showQTECountdown(container, type, difficulty, qteType) {
+  return new Promise(resolve => {
+    const ac = type === 'kill' ? 'var(--blood-bright)' : type === 'verify' ? 'var(--gold)' : 'var(--det-bright)';
+    const lb = type === 'kill' ? '🗡 KILL QTE' : type === 'verify' ? '🔬 VERIFY QTE' : '🔍 INVESTIGATE QTE';
+    const typeNames = { keys:'Key Sequence', circles:'Circle Hunt', pattern:'Pattern Memory', rapid:'Rapid Tap', color:'Color Match', reaction:'Reaction Time', heartbeat:'Heartbeat Sync', search:'Room Search', shadow:'Shadow Dodge', wire:'Wire Cut', lockpick:'Lockpick', memory:'Memory Match' };
+    const typeName = typeNames[qteType] || 'Challenge';
+    let count = 5;
+    function render() {
+      container.innerHTML = `<div class="qte-wrapper" style="text-align:center">
+        <div style="font-size:.7rem;color:var(--pale-dim);letter-spacing:.15em;margin-bottom:6px">${lb}</div>
+        <div style="font-size:.65rem;color:${ac};opacity:.7;margin-bottom:12px">${difficulty.label} • ${typeName}</div>
+        <div style="font-size:3.5rem;font-family:var(--font-display);color:${ac};text-shadow:0 0 30px ${ac};animation:pu .8s infinite">${count}</div>
+        <div style="font-size:.9rem;color:var(--gold);margin-top:12px;letter-spacing:.1em">GET READY</div>
+        <div style="margin-top:16px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden">
+          <div id="qteCountdownBar" style="height:100%;width:100%;background:${ac};transition:width 1s linear"></div>
+        </div>
+      </div>`;
+    }
+    render();
+    const iv = setInterval(() => {
+      count--;
+      if (count <= 0) {
+        clearInterval(iv);
+        container.innerHTML = `<div class="qte-wrapper" style="text-align:center">
+          <div style="font-size:2rem;color:var(--gold);font-family:var(--font-display);animation:pu .3s 2">⚡ GO!</div>
+        </div>`;
+        audio.tone(800, 'sine', 0.15, 0.12);
+        audio.haptic([50, 30, 50]);
+        setTimeout(resolve, 600);
+      } else {
+        render();
+        audio.tone(300 + (5 - count) * 80, 'sine', 0.08, 0.08);
+        audio.haptic([30]);
+        const bar = document.getElementById('qteCountdownBar');
+        if (bar) { bar.style.width = ((count / 5) * 100) + '%'; }
+      }
+    }, 1000);
+    // Start the bar animation immediately
+    setTimeout(() => {
+      const bar = document.getElementById('qteCountdownBar');
+      if (bar) bar.style.width = '80%';
+    }, 50);
+  });
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -318,7 +367,7 @@ const QTE_KEYS = ['W','A','S','D'];
 const QTE_ARROWS = { W:'↑', A:'←', S:'↓', D:'→' };
 const QTE_MOBILE = ['↑','←','↓','→'];
 const QTE_MMAP = { '↑':'W','←':'A','↓':'S','→':'D' };
-function getKeyParams(lv){if(lv<=1)return{keys:3,timePerKey:1100};if(lv===2)return{keys:4,timePerKey:900};if(lv===3)return{keys:5,timePerKey:700};return{keys:6,timePerKey:550};}
+function getKeyParams(lv){if(lv<=1)return{keys:2,timePerKey:1400};if(lv===2)return{keys:3,timePerKey:1100};if(lv===3)return{keys:4,timePerKey:900};return{keys:5,timePerKey:700};}
 
 function runKeySequenceQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -339,7 +388,7 @@ function runKeySequenceQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 // TYPE 2: CIRCLE HUNT
 // ═════════════════════════════════════════════════════════════
-function getCircleParams(lv){if(lv<=1)return{rounds:8,spawnTime:1400,redChance:.3,maxActive:4};if(lv===2)return{rounds:12,spawnTime:1000,redChance:.35,maxActive:5};if(lv===3)return{rounds:16,spawnTime:750,redChance:.4,maxActive:6};return{rounds:20,spawnTime:550,redChance:.45,maxActive:8};}
+function getCircleParams(lv){if(lv<=1)return{rounds:6,spawnTime:1600,redChance:.25,maxActive:3};if(lv===2)return{rounds:9,spawnTime:1200,redChance:.3,maxActive:4};if(lv===3)return{rounds:12,spawnTime:900,redChance:.35,maxActive:5};return{rounds:16,spawnTime:700,redChance:.4,maxActive:6};}
 
 function runCircleHuntQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -359,7 +408,7 @@ function runCircleHuntQTE(container, difficulty, type) {
 // TYPE 3: PATTERN MEMORY
 // ═════════════════════════════════════════════════════════════
 const PAT_SYM=['◆','●','▲','■','★','♦','⬟','◎'];const PAT_CLR=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#e67e22','#1abc9c','#fd79a8'];
-function getPatternParams(lv){if(lv<=1)return{length:4,showTime:2000,symbols:5};if(lv===2)return{length:5,showTime:1500,symbols:6};if(lv===3)return{length:6,showTime:1200,symbols:7};return{length:8,showTime:900,symbols:8};}
+function getPatternParams(lv){if(lv<=1)return{length:3,showTime:2500,symbols:4};if(lv===2)return{length:4,showTime:2000,symbols:5};if(lv===3)return{length:5,showTime:1500,symbols:6};return{length:6,showTime:1200,symbols:7};}
 
 function runPatternMemoryQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -380,7 +429,7 @@ function runPatternMemoryQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 // TYPE 4: RAPID TAP
 // ═════════════════════════════════════════════════════════════
-function getRapidParams(lv){if(lv<=1)return{target:12,timeLimit:3500};if(lv===2)return{target:18,timeLimit:3000};if(lv===3)return{target:25,timeLimit:2500};return{target:35,timeLimit:2200};}
+function getRapidParams(lv){if(lv<=1)return{target:10,timeLimit:4000};if(lv===2)return{target:14,timeLimit:3500};if(lv===3)return{target:20,timeLimit:3000};return{target:28,timeLimit:2500};}
 
 function runRapidTapQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -401,7 +450,7 @@ function runRapidTapQTE(container, difficulty, type) {
 // TYPE 5: COLOR MATCH
 // ═════════════════════════════════════════════════════════════
 const CM_COLORS=[{name:'RED',hex:'#e74c3c'},{name:'BLUE',hex:'#3498db'},{name:'GREEN',hex:'#2ecc71'},{name:'YELLOW',hex:'#f1c40f'},{name:'PURPLE',hex:'#9b59b6'},{name:'ORANGE',hex:'#e67e22'}];
-function getColorParams(lv){if(lv<=1)return{rounds:4,showTime:1200,colors:4};if(lv===2)return{rounds:6,showTime:900,colors:5};if(lv===3)return{rounds:8,showTime:700,colors:5};return{rounds:10,showTime:500,colors:6};}
+function getColorParams(lv){if(lv<=1)return{rounds:3,showTime:1500,colors:4};if(lv===2)return{rounds:5,showTime:1100,colors:4};if(lv===3)return{rounds:7,showTime:850,colors:5};return{rounds:9,showTime:650,colors:6};}
 
 function runColorMatchQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -420,7 +469,7 @@ function runColorMatchQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 // TYPE 6: REACTION TIME
 // ═════════════════════════════════════════════════════════════
-function getReactionParams(lv){if(lv<=1)return{rounds:3,threshold:600};if(lv===2)return{rounds:4,threshold:450};if(lv===3)return{rounds:5,threshold:350};return{rounds:6,threshold:280};}
+function getReactionParams(lv){if(lv<=1)return{rounds:3,threshold:750};if(lv===2)return{rounds:3,threshold:550};if(lv===3)return{rounds:4,threshold:420};return{rounds:5,threshold:350};}
 
 function runReactionTimeQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -440,7 +489,7 @@ function runReactionTimeQTE(container, difficulty, type) {
 // TYPE 7: HEARTBEAT PULSE (Season 2 — Kill themed)
 // Player must tap in sync with a heartbeat rhythm.
 // ═════════════════════════════════════════════════════════════
-function getHeartbeatParams(lv){if(lv<=1)return{beats:6,bpm:60,window:300};if(lv===2)return{beats:8,bpm:75,window:220};if(lv===3)return{beats:10,bpm:90,window:160};return{beats:12,bpm:110,window:120};}
+function getHeartbeatParams(lv){if(lv<=1)return{beats:5,bpm:55,window:400};if(lv===2)return{beats:6,bpm:65,window:300};if(lv===3)return{beats:8,bpm:80,window:220};return{beats:10,bpm:95,window:170};}
 
 function runHeartbeatQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -488,7 +537,7 @@ function runHeartbeatQTE(container, difficulty, type) {
 // TYPE 8: ROOM SEARCH (Season 2 — Investigation themed)
 // Grid of tiles, player must tap highlighted ones before they fade.
 // ═════════════════════════════════════════════════════════════
-function getSearchParams(lv){if(lv<=1)return{gridSize:3,rounds:5,showTime:1200,decoys:1};if(lv===2)return{gridSize:4,rounds:7,showTime:900,decoys:2};if(lv===3)return{gridSize:4,rounds:9,showTime:700,decoys:3};return{gridSize:5,rounds:12,showTime:500,decoys:4};}
+function getSearchParams(lv){if(lv<=1)return{gridSize:3,rounds:4,showTime:1500,decoys:1};if(lv===2)return{gridSize:3,rounds:6,showTime:1100,decoys:1};if(lv===3)return{gridSize:4,rounds:8,showTime:850,decoys:2};return{gridSize:4,rounds:10,showTime:650,decoys:3};}
 
 function runRoomSearchQTE(container, difficulty, type) {
   return new Promise(resolve => {
@@ -537,8 +586,9 @@ function runRoomSearchQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 function runShadowDodgeQTE(container, difficulty, type) {
   return new Promise(resolve => {
-    const rounds = difficulty <= 1 ? 3 : difficulty <= 3 ? 4 : 5;
-    const baseTime = difficulty <= 1 ? 2000 : difficulty <= 3 ? 1500 : 1000;
+    const lv = difficulty.level || difficulty;
+    const rounds = lv <= 1 ? 3 : lv <= 3 ? 4 : 5;
+    const baseTime = lv <= 1 ? 2500 : lv <= 3 ? 1800 : 1200;
     let hits = 0, done = false, round = 0;
     const c = type === 'kill' ? 'var(--blood-bright)' : '#81c784';
 
@@ -586,7 +636,8 @@ function runShadowDodgeQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 function runWireCutQTE(container, difficulty, type) {
   return new Promise(resolve => {
-    const steps = difficulty <= 1 ? 3 : difficulty <= 3 ? 4 : 5;
+    const lv = difficulty.level || difficulty;
+    const steps = lv <= 1 ? 3 : lv <= 3 ? 4 : 5;
     const colors = ['#e53935', '#43a047', '#1e88e5', '#fdd835', '#ab47bc', '#ff7043'];
     let hits = 0, done = false, step = 0;
     const c = type === 'kill' ? 'var(--blood-bright)' : '#81c784';
@@ -623,7 +674,7 @@ function runWireCutQTE(container, difficulty, type) {
         setTimeout(doStep, 500);
       };
       // Timeout
-      setTimeout(() => { if (!clicked && !done) { clicked = true; setTimeout(doStep, 300); } }, difficulty <= 1 ? 3000 : difficulty <= 3 ? 2000 : 1500);
+      setTimeout(() => { if (!clicked && !done) { clicked = true; setTimeout(doStep, 300); } }, lv <= 1 ? 3500 : lv <= 3 ? 2500 : 1800);
     }
     function finish() { if (done) return; done = true; showResult(container, hits / steps, type, resolve); }
     doStep();
@@ -635,9 +686,10 @@ function runWireCutQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 function runLockpickQTE(container, difficulty, type) {
   return new Promise(resolve => {
-    const steps = difficulty <= 1 ? 3 : difficulty <= 3 ? 4 : 5;
-    const sweetSize = difficulty <= 1 ? 30 : difficulty <= 3 ? 22 : 15; // % width
-    const speed = difficulty <= 1 ? 1.5 : difficulty <= 3 ? 2 : 3; // px per frame
+    const lv = difficulty.level || difficulty;
+    const steps = lv <= 1 ? 3 : lv <= 3 ? 4 : 5;
+    const sweetSize = lv <= 1 ? 35 : lv <= 3 ? 26 : 18; // % width
+    const speed = lv <= 1 ? 1.2 : lv <= 3 ? 1.7 : 2.5; // px per frame
     let hits = 0, done = false, step = 0;
     const c = type === 'kill' ? 'var(--blood-bright)' : '#81c784';
 
@@ -689,9 +741,10 @@ function runLockpickQTE(container, difficulty, type) {
 // ═════════════════════════════════════════════════════════════
 function runMemoryMatchQTE(container, difficulty, type) {
   return new Promise(resolve => {
-    const pairCount = difficulty <= 1 ? 3 : difficulty <= 3 ? 4 : 5;
-    const showTime = difficulty <= 1 ? 3000 : difficulty <= 3 ? 2000 : 1500;
-    const maxTime = difficulty <= 1 ? 12000 : difficulty <= 3 ? 10000 : 8000;
+    const lv = difficulty.level || difficulty;
+    const pairCount = lv <= 1 ? 3 : lv <= 3 ? 4 : 5;
+    const showTime = lv <= 1 ? 3500 : lv <= 3 ? 2500 : 1800;
+    const maxTime = lv <= 1 ? 15000 : lv <= 3 ? 12000 : 9000;
     const emojis = ['🗡', '🔪', '💊', '🔦', '🕯', '🗝', '📿', '🩸', '☠', '🎭'];
     const chosen = emojis.sort(() => Math.random() - 0.5).slice(0, pairCount);
     const cards = [...chosen, ...chosen].sort(() => Math.random() - 0.5);
