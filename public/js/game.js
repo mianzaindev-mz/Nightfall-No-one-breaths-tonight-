@@ -1501,7 +1501,7 @@ export default class Game {
     this._isRevote = false; this._revoteTiedIds = null;
     this.teamChatUsed = 0; this.teamSuspicionCounters = { killer: 0, detective: 0 };
     this.forgesUsed = 0; this.traitInvestsUsed = 0; this.dossier = {};
-    clearInterval(this.graceInterval); this._clearSavedState(); audio.setAmbience(null);
+    clearInterval(this.graceInterval); clearInterval(this.dayInterval); clearInterval(this.investInterval); clearTimeout(this.nightTimeout); clearTimeout(this.lastWordsTimeout); this._clearSavedState(); audio.setAmbience(null);
     chat.clear(); ui.clearLog(); this._showLobby();
     if (this.isHost) this.net.relay({ t: 'PL', pl: this.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: true })) });
   }

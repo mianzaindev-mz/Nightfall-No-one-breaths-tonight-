@@ -163,18 +163,18 @@ document.getElementById('rmBotBtn').addEventListener('click', () => game.removeB
 
 // ── Settings Modal ───────────────────────────────────────────
 document.getElementById('btnSettings').addEventListener('click', () => {
-  // Populate current settings
-  document.getElementById('setDayTime').value = game.settings.dayTime;
-  document.getElementById('setNightTime').value = game.settings.nightTime;
-  document.getElementById('setInvestTime').value = game.settings.investTime || 40;
-  document.getElementById('setDoctor').checked = game.settings.doctor;
-  document.getElementById('setJester').checked = game.settings.jester;
-  document.getElementById('setHideVotes').checked = game.settings.hideVotes;
-  // Optional features
-  document.getElementById('setWhispers').checked = game.settings.whispers !== false;
-  document.getElementById('setGhostClues').checked = game.settings.ghostClues !== false;
-  document.getElementById('setNightEvents').checked = game.settings.nightEvents !== false;
-  document.getElementById('setSuspicion').checked = game.settings.suspicion !== false;
+  // Populate current settings (null-safe to prevent crashes if elements missing)
+  const el = id => document.getElementById(id);
+  if (el('setDayTime')) el('setDayTime').value = game.settings.dayTime;
+  if (el('setNightTime')) el('setNightTime').value = game.settings.nightTime;
+  if (el('setInvestTime')) el('setInvestTime').value = game.settings.investTime || 40;
+  if (el('setDoctor')) el('setDoctor').checked = game.settings.doctor;
+  if (el('setJester')) el('setJester').checked = game.settings.jester;
+  if (el('setHideVotes')) el('setHideVotes').checked = game.settings.hideVotes;
+  if (el('setWhispers')) el('setWhispers').checked = game.settings.whispers !== false;
+  if (el('setGhostClues')) el('setGhostClues').checked = game.settings.ghostClues !== false;
+  if (el('setNightEvents')) el('setNightEvents').checked = game.settings.nightEvents !== false;
+  if (el('setSuspicion')) el('setSuspicion').checked = game.settings.suspicion !== false;
   document.getElementById('settingsModal').classList.add('open');
 });
 
@@ -183,17 +183,18 @@ document.getElementById('settingsClose').addEventListener('click', () => {
 });
 
 document.getElementById('settingsSave').addEventListener('click', () => {
+  const el = id => document.getElementById(id);
   game.updateSettings({
-    dayTime: parseInt(document.getElementById('setDayTime').value),
-    nightTime: parseInt(document.getElementById('setNightTime').value),
-    investTime: parseInt(document.getElementById('setInvestTime').value),
-    doctor: document.getElementById('setDoctor').checked,
-    jester: document.getElementById('setJester').checked,
-    hideVotes: document.getElementById('setHideVotes').checked,
-    whispers: document.getElementById('setWhispers').checked,
-    ghostClues: document.getElementById('setGhostClues').checked,
-    nightEvents: document.getElementById('setNightEvents').checked,
-    suspicion: document.getElementById('setSuspicion').checked,
+    dayTime: parseInt(el('setDayTime')?.value || 60),
+    nightTime: parseInt(el('setNightTime')?.value || 30),
+    investTime: parseInt(el('setInvestTime')?.value || 40),
+    doctor: el('setDoctor')?.checked || false,
+    jester: el('setJester')?.checked || false,
+    hideVotes: el('setHideVotes')?.checked || false,
+    whispers: el('setWhispers')?.checked ?? true,
+    ghostClues: el('setGhostClues')?.checked ?? true,
+    nightEvents: el('setNightEvents')?.checked || false,
+    suspicion: el('setSuspicion')?.checked ?? true,
   });
   document.getElementById('settingsModal').classList.remove('open');
   ui.toast('Settings saved');
